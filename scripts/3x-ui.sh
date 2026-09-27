@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 3X-UI со всеми протоколами одной командой — https://github.com/itsnotkubrick/Reality_Hysteria2
+# 3X-UI со всеми протоколами одной командой — https://github.com/itsnotkubrick/3X-UI_KIT
 #
-# Установка:  bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/3x-ui.sh)
+# Установка:  bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh)
 #
 # Ставит официальную панель 3X-UI (версия закреплена ниже) её собственным
 # установщиком, получает сертификат Let's Encrypt на IP, создаёт подключения
@@ -111,11 +111,12 @@ ART
   echo
   echo "${B}3X-UI KIT${N} на основе панели 3X-UI (MHSanaei/3x-ui), ядра Xray и mihomo"
   echo
-  echo "  https://github.com/itsnotkubrick/Reality_Hysteria2"
+  echo "  https://github.com/itsnotkubrick/3X-UI_KIT"
   echo "  ${D}it's not Kubrick. it's just a VPN.${N}"
   echo
   echo "Ниже — данные для входа в панель и подключения."
 }
+
 main() {
   [[ $EUID -eq 0 ]] || die "Запустите от root: sudo -i, затем команду ещё раз."
   command -v systemctl >/dev/null || die "Нужен systemd."
@@ -694,7 +695,7 @@ awg_attach() { # имя subId [лимит-байт] [срок-мс] [устро�
   done
 }
 
-KIT_CLI_URL="https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/kit.sh"
+KIT_CLI_URL="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/kit.sh"
 
 install_kit_cli() {
   install -d -m 700 /etc/kit
@@ -872,7 +873,7 @@ setup_subscription() {
   SUB_FETCH="$(if [[ $TRUSTED == yes ]]; then echo https; else echo http; fi)://$HOST:$SUB_PORT$SUB_PATH$SUBID"
 }
 
-KIT_SUB_URL="https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/kit-sub.py"
+KIT_SUB_URL="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/kit-sub.py"
 
 install_kit_sub() {
   say "Ставлю подписку с учётом приложения (kit-sub)"

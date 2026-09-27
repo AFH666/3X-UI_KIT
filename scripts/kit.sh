@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # kit — пользователи 3X-UI KIT: один пользователь сразу на всех протоколах.
-# https://github.com/itsnotkubrick/Reality_Hysteria2
+# https://github.com/itsnotkubrick/3X-UI_KIT
 #
 #   kit user add имя [--gb 50] [--days 30] [--devices 3]
 #   kit user list | link имя | limit имя [--gb N] [--days N] | off имя | on имя | del имя

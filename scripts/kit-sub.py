@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Подписка с учётом приложения — посредник перед подпиской 3X-UI.
 
-https://github.com/itsnotkubrick/Reality_Hysteria2
+https://github.com/itsnotkubrick/3X-UI_KIT
 
 Слушает публичный адрес подписки (HTTPS) и ходит в подписку 3X-UI на 127.0.0.1:
   * Clash / Mihomo (Clash Verge, FlClash, Mihomo Party…) — конфиг 3X-UI плюс AmneziaWG

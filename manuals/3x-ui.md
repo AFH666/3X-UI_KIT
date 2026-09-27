@@ -59,7 +59,7 @@
 Подключитесь к серверу по SSH и выполните:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/3x-ui.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh)
 ```
 
 Через пару минут скрипт покажет всё нужное:
