@@ -244,13 +244,16 @@ main() {
   setup_tls_cert
 
   # --- подключения: все выбранные протоколы, один subId на пользователя ---
-  SUBID=$(tr 'A-Z' 'a-z' <<<"$NAME")
   EXISTING=$(api GET inbounds/list)
+  SUBID=""
   local p
   for p in "${PROTOS[@]}"; do "proto_$p"; done
+  # Первый пользователь — сразу на всех протоколах (как «kit user add»).
+  ensure_user
 
   # --- подписка: ссылки, Clash/Mihomo и JSON с автоопределением клиента ---
   setup_subscription
+  install_kit_cli
 
   # --- файрвол ---
   if [[ $UFW == yes ]]; then
@@ -273,11 +276,12 @@ main() {
   else
     panel_url="http://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH  (через SSH-туннель: ssh -L $XUI_PANEL_PORT:127.0.0.1:$XUI_PANEL_PORT root@$HOST)"
   fi
-  links=$(sub_links)
-  AWG_LINKS=$(SUB_FETCH="$SUB_FETCH-awg" sub_links)
-  TG_LINK=$(SUB_FETCH="$SUB_FETCH-tg" sub_links)
-  [[ -n $AWG_LINKS ]] && links+=$'\n'"$AWG_LINKS"
-  [[ -n $TG_LINK ]] && links+=$'\n'"$TG_LINK"
+  links=$(sub_links "$SUBID")
+  # У установок до kit 1.1 AmneziaWG и MTProto лежат в подписках «-awg» и «-tg».
+  local extra
+  extra=$(sub_links "$SUBID-awg" 1; sub_links "$SUBID-tg" 1)
+  [[ -n $extra ]] && links+=$'\n'"$extra"
+  AWG_LINKS=$(grep '^vpn://' <<<"$links" || true)
   umask 077
   {
     echo "3X-UI $XUI_VERSION — данные для входа (файл виден только root)"
@@ -319,8 +323,11 @@ main() {
   if [[ -n $PIN && " ${CREATED[*]} " == *" TUIC "* ]]; then
     warn "TUIC со своим сертификатом: в клиенте включите «Разрешить небезопасный» (allow insecure) — отпечаток TUIC-ссылки не передают."
   fi
-  echo "Всё это сохранено в ${B}$RESULT${N}. Друзей добавляйте в панели: Клиенты → Добавить клиента,"
-  echo "отметьте все подключения и задайте одинаковый Subscription ID — у друга будет своя подписка."
+  echo "Всё это сохранено в ${B}$RESULT${N}."
+  echo
+  echo "Друзья — одной командой, сразу во все протоколы, со своей подпиской:"
+  echo "  ${B}kit user add sasha --gb 50 --days 30${N}"
+  echo "  ${B}kit user list${N}     — кто сколько израсходовал и до какого числа"
 }
 
 # ---------- сертификат ----------
@@ -372,6 +379,8 @@ add_inbound() {
   if jq -e --arg r "$remark" 'any(.[]; .remark == $r)' <<<"$EXISTING" >/dev/null; then
     CREATED+=("$remark"); open_port "$port" "$net"; return
   fi
+  # Клиентов в подключение не кладём: пользователь добавляется потом сразу во все подключения.
+  settings=$(jq -c 'if has("clients") then .clients = [] else . end' <<<"$settings")
   local n
   for n in ${net/both/tcp udp}; do
     if port_busy "$port" "$n"; then warn "$remark пропущен: порт $port/$n занят"; return; fi
@@ -490,12 +499,15 @@ awg_obfuscation() { # classic|full
     --arg h1 "$(rnd 5 536870911)" --arg h2 "$(rnd 536870912 1073741823)" --arg h3 "$(rnd 1073741824 1610612735)" --arg h4 "$(rnd 1610612736 2147483647)" \
     '{jc: $jc, jmin: $jmin, jmax: $jmax, s1: $s1, s2: $s2, h1: $h1, h2: $h2, h3: $h3, h4: $h4}')
   if [[ $1 == full ]]; then
+    # С защитой заголовков (3.1) документация AmneziaWG советует H1–H4 = 1, 2, 3, 4:
+    # тип сообщения тогда скрывает сама защита, а свои заголовки отключаются.
     local cp rk rj rt ka ha
     cp=$(rnd 8 24); rk=$(rnd 100 120); rj=$((rk + $(rnd 10 40) + $(rnd 30 60))); rt=$(rnd 3 6); ka=$(rnd 8 12); ha=$(rnd 15 25)
     o=$(jq -c --argjson s3 "$(rnd 12 55)" --argjson s4 "$(rnd 12 27)" --arg i1 "<r $(rnd 32 256)>" --arg hp "$(openssl rand -base64 32)" \
       --arg cp "$cp-$((cp + $(rnd 8 40)))" --arg rk "$rk-$((rk + $(rnd 10 40)))" --arg rj "$rj-$((rj + $(rnd 30 90)))" \
       --arg rt "$rt-$((rt + $(rnd 1 4)))" --arg ka "$ka-$((ka + $(rnd 2 8)))" --arg ha "$ha-$((ha + $(rnd 5 25)))" \
-      '. + {s3: $s3, s4: $s4, i1: $i1, headerProtectionKey: $hp, contentPaddingAddition: $cp, rekeyAfterTime: $rk,
+      '. + {h1: "1", h2: "2", h3: "3", h4: "4",
+            s3: $s3, s4: $s4, i1: $i1, headerProtectionKey: $hp, contentPaddingAddition: $cp, rekeyAfterTime: $rk,
             rejectAfterTime: $rj, rekeyTimeout: $rt, keepaliveTimeout: $ka, maxHandshakeAttempts: $ha}' <<<"$o")
   fi
   echo "$o"
@@ -532,6 +544,78 @@ proto_mtproto() {
   local settings
   settings=$(jq -nc --argjson c "$(client_base mtproto)" '{fakeTlsDomain: "www.cloudflare.com", clients: [$c + {secret: ""}]}')
   add_inbound "MTProto" "${PORTS[mtproto]}" tcp mtproto "$settings" '{}'
+}
+
+# ---------- пользователи ----------
+
+# Один клиент 3X-UI на все подключения: общие трафик, лимиты и срок, одна подписка.
+ensure_user() {
+  local list me ids missing legacy
+  list=$(api GET clients/list | jq -c 'if type == "array" then . else .clients end')
+  ids=$(non_awg_ids)
+  me=$(jq -c --arg e "$NAME" 'map(select(.email == $e))[0] // empty' <<<"$list")
+  legacy=$(jq -r --arg p "$NAME-" 'map(select((.email | startswith($p)) and (.email | test("-awg[0-9]*$") | not))) | .[0].subId // empty' <<<"$list")
+  if [[ -n $me ]]; then
+    SUBID=$(jq -r '.subId' <<<"$me")
+    missing=$(jq -c --argjson all "$ids" '$all - (.inboundIds // [])' <<<"$me")
+    [[ $missing == "[]" ]] || api POST "clients/$NAME/attach" "$(jq -nc --argjson i "$missing" '{inboundIds: $i}')" >/dev/null
+    awg_attach "$NAME" "$SUBID"
+  elif [[ -n $legacy ]]; then
+    # Установка до kit 1.1: у каждого протокола свой клиент — оставляем как есть.
+    SUBID=$legacy
+  else
+    SUBID=$(rand_str 16 | tr 'A-Z' 'a-z')
+    api POST clients/add "$(jq -nc --arg e "$NAME" --arg s "$SUBID" --argjson ids "$ids" \
+      '{client: {email: $e, subId: $s, totalGB: 0, expiryTime: 0, limitIp: 0, enable: true, comment: "kit"}, inboundIds: $ids}')" >/dev/null
+    awg_attach "$NAME" "$SUBID"
+  fi
+}
+
+# В 3X-UI 3.x у клиента одна запись и в ней одна пара ключей WireGuard и один адрес. Если
+# клиент подключён к двум AmneziaWG, в подписку для обоих уходят ключ и адрес одного из них,
+# и второй сервер клиента не узнаёт (проверено 2026-09-27). Поэтому к первому AmneziaWG
+# подключаем основную запись, а ко второму — запись-«двойник» «имя-awg» с подпиской «<id>-awg»
+# (subId в 3X-UI обязан быть уникальным) и теми же лимитами; kit-sub подмешивает её в Clash.
+awg_ids() { api GET inbounds/list | jq -r '[.[] | select(.protocol == "amneziawg") | .id] | sort | .[]'; }
+non_awg_ids() { api GET inbounds/list | jq -c '[.[] | select(.protocol != "amneziawg") | .id]'; }
+
+awg_attach() { # имя subId [лимит-байт] [срок-мс] [устройств]
+  local name=$1 sid=$2 total=${3:-0} exp=${4:-0} lim=${5:-0} n=1 id email have
+  have=$(api GET clients/list | jq -c 'if type == "array" then . else .clients end')
+  for id in $(awg_ids); do
+    local esid=$sid
+    if ((n == 1)); then email=$name
+    elif ((n == 2)); then email="$name-awg"; esid="$sid-awg"
+    else email="$name-awg$n"; esid="$sid-awg$n"; fi
+    n=$((n + 1))
+    if jq -e --arg e "$email" --argjson i "$id" 'any(.[]; .email == $e and ((.inboundIds // []) | index($i)))' <<<"$have" >/dev/null; then
+      continue
+    elif jq -e --arg e "$email" 'any(.[]; .email == $e)' <<<"$have" >/dev/null; then
+      api POST "clients/$email/attach" "$(jq -nc --argjson i "$id" '{inboundIds: [$i]}')" >/dev/null
+    else
+      api POST clients/add "$(jq -nc --arg e "$email" --arg s "$esid" --argjson t "$total" --argjson x "$exp" --argjson l "$lim" --argjson i "$id" \
+        '{client: {email: $e, subId: $s, totalGB: $t, expiryTime: $x, limitIp: $l, enable: true, comment: "kit"}, inboundIds: [$i]}')" >/dev/null
+    fi
+  done
+}
+
+KIT_CLI_URL="https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/kit.sh"
+
+install_kit_cli() {
+  install -d -m 700 /etc/kit
+  {
+    printf 'HOST=%q\n' "$HOST"
+    printf 'SUB_BASE=%q\n' "${SUB_URL%$SUBID}"
+    printf 'SUB_PATH=%q\n' "$SUB_PATH"
+    printf 'SUB_INTERNAL=%q\n' "${SUB_INTERNAL:-$SUB_PORT}"
+  } >/etc/kit/kit.env
+  chmod 600 /etc/kit/kit.env
+  local d src=""
+  d=$(dirname "${BASH_SOURCE[0]}")
+  [[ -f $d/kit.sh && ${BASH_SOURCE[0]} != /dev/fd/* ]] && src=$d/kit.sh
+  if [[ -n $src ]]; then install -m 755 "$src" /usr/local/bin/kit
+  else curl -fsSL --retry 3 -o /usr/local/bin/kit "$KIT_CLI_URL" && chmod 755 /usr/local/bin/kit; fi
+  bash -n /usr/local/bin/kit || die "Команда kit скачалась повреждённой"
 }
 
 # ---------- подписка ----------
@@ -615,16 +699,17 @@ UNIT
 }
 
 # Ссылки пользователя — из его же подписки (её собирает сама 3X-UI).
+# Ссылки пользователя — прямо из подписки 3X-UI внутри сервера (мимо kit-sub, который
+# прячет от VPN-приложений vpn:// и tg://). sub_links subId [попыток]
 sub_links() {
-  local raw i
-  local SUB_FETCH=${SUB_FETCH}
-  for i in $(seq 1 20); do
-    # Запрос идёт на этот же сервер, но с настоящим адресом в Host — 3X-UI подставит его в ссылки.
-    raw=$(curl -fsSk -m 10 -A "v2rayN/7.0" --connect-to "$HOST:$SUB_PORT:127.0.0.1:$SUB_PORT" \
-      "$SUB_FETCH" 2>/dev/null) && [[ -n $raw ]] && break
-    sleep 2
+  local id=$1 tries=${2:-20} raw="" i port=${SUB_INTERNAL:-$SUB_PORT} scheme=http
+  [[ -z ${SUB_INTERNAL:-} && $TRUSTED == yes ]] && scheme=https
+  for i in $(seq 1 "$tries"); do
+    # Настоящий адрес в Host — 3X-UI подставит его в ссылки.
+    raw=$(curl -fsSk -m 10 -A "v2rayN/7.0" -H "Host: $HOST:$SUB_PORT" "$scheme://127.0.0.1:$port$SUB_PATH$id" 2>/dev/null) && [[ -n $raw ]] && break
+    raw=""; sleep 2
   done
-  if grep -q '://' <<<"$raw"; then echo "$raw"; else base64 -d <<<"$raw" 2>/dev/null; fi
+  if grep -q '://' <<<"$raw"; then echo "$raw"; else base64 -d <<<"$raw" 2>/dev/null || true; fi
 }
 
 usage() {

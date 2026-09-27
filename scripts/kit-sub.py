@@ -13,6 +13,7 @@ https://github.com/itsnotkubrick/Reality_Hysteria2
 Настройки — /etc/kit-sub/config.json. Сертификат перечитывается сам после продления.
 """
 
+import base64
 import http.server
 import json
 import os
@@ -64,6 +65,36 @@ def fix_userinfo(value):
     return "; ".join(parts)
 
 
+def strip_links(body):
+    """Список ссылок (base64 или текст) без vpn:// и tg:// — их не умеет ни одно VPN-приложение
+    со ссылками: vpn:// — конфиг для AmneziaVPN, tg:// — прокси для Telegram."""
+    text = body.decode("utf-8", "replace").strip()
+    encoded = "://" not in text
+    if encoded:
+        try:
+            text = base64.b64decode(text + "=" * (-len(text) % 4)).decode("utf-8", "replace")
+        except ValueError:
+            return body
+    lines = [l for l in text.splitlines() if l.strip() and not l.startswith(("vpn://", "tg://"))]
+    out = "\n".join(lines)
+    return base64.b64encode(out.encode()).decode().encode() if encoded else out.encode()
+
+
+def strip_awg(clash_yaml):
+    """Clash-конфиг без AmneziaWG — для приложений, которые его не умеют."""
+    cfg = yaml.safe_load(clash_yaml)
+    if not isinstance(cfg, dict):
+        return clash_yaml
+    awg = {p.get("name") for p in cfg.get("proxies") or [] if isinstance(p, dict) and "amnezia-wg-option" in p}
+    if not awg:
+        return clash_yaml
+    cfg["proxies"] = [p for p in cfg["proxies"] if p.get("name") not in awg]
+    for g in cfg.get("proxy-groups") or []:
+        if isinstance(g.get("proxies"), list):
+            g["proxies"] = [x for x in g["proxies"] if x not in awg]
+    return yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False).encode()
+
+
 def merge_awg(main_yaml, awg_yaml):
     """Добавляет прокси AmneziaWG в Clash-конфиг и во все группы, где перечислены прокси."""
     main = yaml.safe_load(main_yaml)
@@ -75,6 +106,8 @@ def merge_awg(main_yaml, awg_yaml):
         return main_yaml
     names = {p.get("name") for p in main.get("proxies") or []}
     for p in extra:
+        # 3X-UI дописывает к имени запись-«двойника» («AmneziaWG-3.1-sasha-awg») — убираем хвост.
+        p["name"] = re.sub(r"-[^-\s]+-awg\d*$", "", p["name"]) or p["name"]
         base, n = p["name"], 2
         while p["name"] in names:
             p["name"] = f"{base} {n}"
@@ -140,13 +173,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         awg = clash and not NO_AWG_UA.search(ua)
         # В журнал — только приложение и что ему отдали, без IP.
         log(f"{ua[:80]!r} → {'clash+awg' if awg else 'clash' if clash else headers.get('content-type', '?').split(';')[0]}")
-        if code == 200 and awg and not sub_id.endswith(("-awg", "-tg")):
-            acode, _, abody = upstream(sub_id + "-awg", ua, host, accept)
-            if acode == 200 and abody:
-                try:
+        try:
+            if code == 200 and clash and not awg:
+                body = strip_awg(body)
+            elif code == 200 and awg and not sub_id.endswith(("-awg", "-tg")):
+                # Установки до kit 1.1 держали AmneziaWG в подписке «<id>-awg» — подмешиваем её.
+                acode, _, abody = upstream(sub_id + "-awg", ua, host, accept)
+                if acode == 200 and abody:
                     body = merge_awg(body, abody)
-                except yaml.YAMLError as e:
-                    log(f"не удалось добавить AmneziaWG: {e}")
+            elif code == 200 and "text/plain" in headers.get("content-type", ""):
+                body = strip_links(body)
+        except (yaml.YAMLError, UnicodeError) as e:
+            log(f"не удалось обработать подписку: {e}")
 
         self.send_response(code)
         for k in PASS_HEADERS:
