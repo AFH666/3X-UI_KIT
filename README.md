@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="3X-UI + Hysteria2 Kit" src="manuals/assets/banner.svg" width="820">
+<img alt="3X-UI KIT" src="manuals/assets/banner.svg" width="820">
 
 **Пошаговые инструкции: свой VPN-сервер за 15 минут и прокси на роутере Keenetic**
 

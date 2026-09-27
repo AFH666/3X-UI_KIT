@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# kit — пользователи 3X-UI + Hysteria2 Kit: один пользователь сразу на всех протоколах.
+# kit — пользователи 3X-UI KIT: один пользователь сразу на всех протоколах.
 # https://github.com/itsnotkubrick/Reality_Hysteria2
 #
 #   kit user add имя [--gb 50] [--days 30] [--devices 3]
@@ -212,22 +212,6 @@ cmd_del() {
   say "Пользователь $name удалён, его подписка больше не работает."
 }
 
-cmd_about() {
-  # Пасхалка: kit itsnotkubrick
-  cat <<'ART'
-  _ _                   _   _          _          _      _
- (_) |_ ___ _ __   ___ | |_| | ___   _| |__  _ __(_) ___| | __
- | | __/ __| '_ \ / _ \| __| |/ / | | | '_ \| '__| |/ __| |/ /
- | | |_\__ \ | | | (_) | |_|   <| |_| | |_) | |  | | (__|   <
- |_|\__|___/_| |_|\___/ \__|_|\_\\__,_|_.__/|_|  |_|\___|_|\_\
-ART
-  echo
-  echo "  ${B}3X-UI + Hysteria2 Kit${N} — сделал ${B}itsnotkubrick${N}"
-  echo "  на основе панели 3X-UI (MHSanaei/3x-ui) и ядра Xray (XTLS)"
-  echo
-  echo "  ${D}https://github.com/itsnotkubrick/Reality_Hysteria2${N}"
-  echo "  ${D}it's not Kubrick. it's just a VPN.${N}"
-}
 
 usage() {
   cat <<EOF
@@ -239,7 +223,6 @@ ${B}kit${N} — пользователи: один пользователь ср
   kit user limit имя [--gb N] [--days N] [--devices N]    изменить лимиты (0 — без ограничений)
   kit user off имя  /  kit user on имя                    выключить и включить
   kit user del имя                                        удалить
-  kit about                                               об авторе
 EOF
 }
 
@@ -251,6 +234,5 @@ case "${1:-} ${2:-}" in
   "user off") cmd_toggle "${3:-}" false ;;
   "user on") cmd_toggle "${3:-}" true ;;
   "user del") shift 2; cmd_del "$@" ;;
-  "about "*|"itsnotkubrick "*|"--version "*) cmd_about ;;
   *) usage ;;
 esac
