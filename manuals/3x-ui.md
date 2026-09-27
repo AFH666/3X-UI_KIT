@@ -15,8 +15,8 @@
 - подбирает сайт для маскировки REALITY — с TLS 1.3 и HTTP/2;
 - создаёт подключения на всех протоколах из таблицы ниже, генерирует ключи
   и обфускацию AmneziaWG;
-- включает единую подписку: Clash Verge и FlClash получают готовый конфиг Mihomo,
-  остальные приложения — список ссылок;
+- включает единую подписку с учётом приложения: Clash Verge и FlClash получают готовый
+  конфиг Mihomo с AmneziaWG, остальные приложения — ссылки только на то, что они умеют;
 - открывает в ufw только нужные порты.
 
 ## Протоколы
@@ -77,10 +77,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/Reality_Hyster
 | Android | Hiddify, Happ, v2rayNG, FlClash |
 | Windows, macOS, Linux | Hiddify, v2rayN, Clash Verge |
 
-**AmneziaWG идёт отдельной подпиской** — её адрес заканчивается на `-awg`. Добавьте её в Clash Verge
-или FlClash, а в AmneziaVPN импортируйте ссылки `vpn://` из `/root/3x-ui.txt`. В общую подписку
-AmneziaWG не попадает: Happ, v2rayN, Karing и Hiddify его не поддерживают.
-Для Telegram — ссылка `tg://` оттуда же.
+Подписка смотрит, какое приложение её запрашивает: Clash Verge и FlClash получают AmneziaWG,
+а Happ, v2rayN, Karing и Hiddify — нет, потому что не умеют его. Для AmneziaVPN импортируйте
+ссылки `vpn://` из `/root/3x-ui.txt`, для Telegram — ссылку `tg://` оттуда же.
 
 ## Добавить друга
 
@@ -96,6 +95,13 @@ AmneziaWG не попадает: Happ, v2rayN, Karing и Hiddify его не п�
 | `--cert fullchain.pem --key privkey.pem --host домен` | свой сертификат, например для домена |
 | `--sni www.samsung.com` | свой сайт для маскировки REALITY |
 | `--no-ufw` | не трогать файрвол |
+
+## Как устроена подписка
+
+Наружу смотрит небольшой сервис [kit-sub](../scripts/kit-sub.py) (Python, служба `kit-sub`),
+а подписка 3X-UI работает только внутри сервера. kit-sub узнаёт приложение по User-Agent,
+добавляет AmneziaWG в конфиг для Clash-приложений, убирает из заголовка «срок 0», из-за которого
+приложения показывали 01.01.1970, и сам подхватывает продлённый сертификат.
 
 > [!NOTE]
 > Если порт 80 занят, сертификат Let's Encrypt не получить. Тогда скрипт сделает свой

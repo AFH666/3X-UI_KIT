@@ -287,7 +287,6 @@ main() {
     echo "Пароль:  $XUI_PASSWORD"
     echo
     [[ $TRUSTED == yes ]] && { echo "Подписка ($NAME) — все протоколы одной ссылкой:"; echo "$SUB_URL"; echo; }
-    [[ $TRUSTED == yes && -n $AWG_LINKS ]] && { echo "AmneziaWG — для AmneziaVPN, Clash Verge, FlClash:"; echo "$SUB_URL-awg"; echo; }
     echo "Отдельные подключения ($NAME):"
     echo "$links"
   } >"$RESULT"
@@ -309,10 +308,7 @@ main() {
     qrencode -t ANSIUTF8 -m 1 "$SUB_URL" || true
     if [[ -n $AWG_LINKS ]]; then
       echo
-      echo "AmneziaWG — отдельная подписка для Clash Verge и FlClash; в AmneziaVPN импортируйте"
-      echo "ссылки vpn:// из $RESULT:"
-      echo
-      echo "$SUB_URL-awg"
+      echo "AmneziaWG приходит по подписке в Clash Verge и FlClash; для AmneziaVPN — ссылки vpn:// в $RESULT."
     fi
   else
     echo "Без сертификата подписка недоступна снаружи — вот ссылки по одной:"
@@ -541,23 +537,81 @@ proto_mtproto() {
 # ---------- подписка ----------
 
 setup_subscription() {
-  local all
+  local all upd
   all=$(api POST setting/all '{}')
-  SUB_PORT=$(jq -r '.subPort // 2096' <<<"$all")
   SUB_PATH=$(jq -r '.subPath // "/sub/"' <<<"$all")
   if [[ $SUB_PATH == /sub/ || -z $SUB_PATH ]]; then SUB_PATH="/$(rand_str 12 | tr 'A-Z' 'a-z')/"; fi
-  local upd
-  upd=$(jq -c --arg path "$SUB_PATH" --arg c "$CERT" --arg k "$KEY" --arg ssl "$TRUSTED" --arg title "3X-UI + Hysteria2 Kit" '
-    .subEnable = true | .subPath = $path | .subTitle = $title
-    | .subClashEnable = true | .subClashAutoDetect = true | .subJsonEnable = true | .subJsonAutoDetect = true
-    | if $ssl == "yes" then .subCertFile = $c | .subKeyFile = $k | .subListen = "" else . end' <<<"$all")
+  if [[ $TRUSTED == yes ]]; then
+    # Наружу смотрит kit-sub (подписка с учётом приложения), 3X-UI — только на 127.0.0.1.
+    SUB_PORT=2096; SUB_INTERNAL=2097
+    upd=$(jq -c --arg path "$SUB_PATH" --argjson ip "$SUB_INTERNAL" --arg title "3X-UI + Hysteria2 Kit" '
+      .subEnable = true | .subPath = $path | .subTitle = $title | .subListen = "127.0.0.1" | .subPort = $ip
+      | .subCertFile = "" | .subKeyFile = ""
+      | .subClashEnable = true | .subClashAutoDetect = true | .subJsonEnable = true | .subJsonAutoDetect = true' <<<"$all")
+  else
+    SUB_PORT=$(jq -r '.subPort // 2096' <<<"$all")
+    upd=$(jq -c --arg path "$SUB_PATH" --arg title "3X-UI + Hysteria2 Kit" '
+      .subEnable = true | .subPath = $path | .subTitle = $title
+      | .subClashEnable = true | .subClashAutoDetect = true | .subJsonEnable = true | .subJsonAutoDetect = true' <<<"$all")
+  fi
   if [[ $upd != "$all" ]]; then
     api POST setting/update "$upd" >/dev/null
     systemctl restart x-ui
     wait_panel
   fi
+  [[ $TRUSTED == yes ]] && install_kit_sub
   if [[ $TRUSTED == yes ]]; then SUB_URL="https://$HOST:$SUB_PORT$SUB_PATH$SUBID"; else SUB_URL="http://127.0.0.1:$SUB_PORT$SUB_PATH$SUBID"; fi
   SUB_FETCH="$(if [[ $TRUSTED == yes ]]; then echo https; else echo http; fi)://$HOST:$SUB_PORT$SUB_PATH$SUBID"
+}
+
+KIT_SUB_URL="https://raw.githubusercontent.com/itsnotkubrick/Reality_Hysteria2/main/scripts/kit-sub.py"
+
+install_kit_sub() {
+  say "Ставлю подписку с учётом приложения (kit-sub)"
+  apt-get install -y -qq python3 python3-yaml >/dev/null
+  install -d -m 755 /usr/local/lib/kit-sub /etc/kit-sub
+  local src=${KIT_SUB_SRC:-}
+  if [[ -z $src ]]; then
+    local d; d=$(dirname "${BASH_SOURCE[0]}")
+    [[ -f $d/kit-sub.py && ${BASH_SOURCE[0]} != /dev/fd/* ]] && src=$d/kit-sub.py
+  fi
+  if [[ -n $src ]]; then install -m 644 "$src" /usr/local/lib/kit-sub/kit_sub.py
+  else curl -fsSL --retry 3 -o /usr/local/lib/kit-sub/kit_sub.py "$KIT_SUB_URL"; fi
+  python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" /usr/local/lib/kit-sub/kit_sub.py || die "kit-sub скачался повреждённым"
+  jq -n --arg path "$SUB_PATH" --argjson port "$SUB_PORT" --arg up "http://127.0.0.1:$SUB_INTERNAL" \
+    --arg cert "$CERT" --arg key "$KEY" --arg host "$HOST" \
+    '{listen: "0.0.0.0", port: $port, path: $path, upstream: $up, cert: $cert, key: $key, host: $host}' >/etc/kit-sub/config.json
+  chmod 600 /etc/kit-sub/config.json
+  cat >/etc/systemd/system/kit-sub.service <<'UNIT'
+[Unit]
+Description=kit-sub: подписка с учётом приложения (3X-UI + Hysteria2 Kit)
+After=network-online.target x-ui.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/kit-sub/kit_sub.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable kit-sub >/dev/null 2>&1
+  systemctl restart kit-sub
+  local i
+  for i in $(seq 1 20); do port_busy "$SUB_PORT" tcp && return 0; sleep 1; done
+  journalctl -u kit-sub -n 20 --no-pager >&2 || true
+  die "kit-sub не запустился — лог выше."
 }
 
 # Ссылки пользователя — из его же подписки (её собирает сама 3X-UI).
