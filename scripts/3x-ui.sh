@@ -9,6 +9,8 @@
 # AmneziaWG (классика и 3.1) и MTProto (и WireGuard по запросу), включает единую подписку
 # с форматом под каждый клиент и настраивает ufw. Домены не нужны.
 # Каждый протокол проверен настоящими клиентами — см. tests/matrix.
+#
+# Автор — itsnotkubrick. Панель — 3X-UI (MHSanaei/3x-ui), ядро — Xray (XTLS).
 
 set -Eeuo pipefail
 
@@ -311,7 +313,7 @@ main() {
   [[ $SINGLE == yes ]] && links=$(sed "s/^\(tg:\/\/proxy?\)\(.*\)port=${INNER[mtproto]}/\1\2port=443/" <<<"$links")
   umask 077
   {
-    echo "3X-UI $XUI_VERSION — данные для входа (файл виден только root)"
+    echo "3X-UI $XUI_VERSION + Kit by itsnotkubrick — данные для входа (файл виден только root)"
     echo
     echo "Панель:  $panel_url"
     echo "Логин:   $XUI_USERNAME"
@@ -355,6 +357,8 @@ main() {
   echo "Друзья — одной командой, сразу во все протоколы, со своей подпиской:"
   echo "  ${B}kit user add sasha --gb 50 --days 30${N}"
   echo "  ${B}kit user list${N}     — кто сколько израсходовал и до какого числа"
+  echo
+  echo "${D}3X-UI + Hysteria2 Kit — сделал itsnotkubrick на основе 3X-UI. Попробуйте: kit itsnotkubrick${N}"
 }
 
 # ---------- сертификат ----------
@@ -830,13 +834,13 @@ setup_subscription() {
   if [[ $TRUSTED == yes ]]; then
     # Наружу смотрит kit-sub (подписка с учётом приложения), 3X-UI — только на 127.0.0.1.
     SUB_PORT=2096; SUB_INTERNAL=2097
-    upd=$(jq -c --arg path "$SUB_PATH" --argjson ip "$SUB_INTERNAL" --arg title "3X-UI + Hysteria2 Kit" '
+    upd=$(jq -c --arg path "$SUB_PATH" --argjson ip "$SUB_INTERNAL" --arg title "Kit by itsnotkubrick" '
       .subEnable = true | .subPath = $path | .subTitle = $title | .subListen = "127.0.0.1" | .subPort = $ip
       | .subCertFile = "" | .subKeyFile = ""
       | .subClashEnable = true | .subClashAutoDetect = true | .subJsonEnable = true | .subJsonAutoDetect = true' <<<"$all")
   else
     SUB_PORT=$(jq -r '.subPort // 2096' <<<"$all")
-    upd=$(jq -c --arg path "$SUB_PATH" --arg title "3X-UI + Hysteria2 Kit" '
+    upd=$(jq -c --arg path "$SUB_PATH" --arg title "Kit by itsnotkubrick" '
       .subEnable = true | .subPath = $path | .subTitle = $title
       | .subClashEnable = true | .subClashAutoDetect = true | .subJsonEnable = true | .subJsonAutoDetect = true' <<<"$all")
   fi
