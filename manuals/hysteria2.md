@@ -1,6 +1,6 @@
 # 🚀 Hysteria2
 
-[← Все инструкции](../README.md#инструкции)
+[← На главную](../README.md)
 
 [Hysteria2](https://github.com/HyNetworks/hysteria) работает поверх UDP и
 хорошо держит скорость на плохих каналах — отличная пара к REALITY. Одна
@@ -73,4 +73,4 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 
 ---
 
-[← Все инструкции](../README.md#инструкции) · [Дальше: 📶 XKeen на Keenetic →](xkeen-keenetic.md)
+[← На главную](../README.md) · [Дальше: 📶 XKeen на Keenetic →](xkeen-keenetic.md)

@@ -1,6 +1,6 @@
 # 📶 XKeen на Keenetic
 
-[← Все инструкции](../README.md#инструкции)
+[← На главную](../README.md)
 
 [XKeen](https://github.com/jameszeroX/XKeen) направляет через прокси
 (Xray или Mihomo) трафик только выбранных устройств, а остальные ходят
@@ -97,4 +97,4 @@ sh -c "$(curl -sSL https://raw.githubusercontent.com/jameszeroX/XKeen/main/insta
 
 ---
 
-[← Все инструкции](../README.md#инструкции)
+[← На главную](../README.md)
