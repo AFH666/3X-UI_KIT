@@ -6,7 +6,7 @@
 # Ставит официальную панель 3X-UI (версия закреплена ниже) её собственным
 # установщиком, получает сертификат Let's Encrypt на IP, создаёт подключения
 # REALITY, XHTTP, VLESS/VMess WS, Trojan gRPC, Shadowsocks 2022, Hysteria2, TUIC,
-# WireGuard, AmneziaWG (классика и 3.1) и MTProto, включает единую подписку
+# AmneziaWG (классика и 3.1) и MTProto (и WireGuard по запросу), включает единую подписку
 # с форматом под каждый клиент и настраивает ufw. Домены не нужны.
 # Каждый протокол проверен настоящими клиентами — см. tests/matrix.
 
@@ -25,6 +25,9 @@ XUI_ENV=/etc/x-ui/install-result.env
 SNI_CANDIDATES=(dl.google.com www.amazon.com www.samsung.com www.yahoo.com)
 
 ALL_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic wg awg awg3 mtproto)
+# Обычный WireGuard в России режет DPI (проверено 2026-09-27: рукопожатие доходит до сервера,
+# ответ — нет), а его попытки могут привлечь блокировку IP. По умолчанию не ставим.
+DEFAULT_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic awg awg3 mtproto)
 declare -A PORTS=([xhttp]=8443 [ws]=2053 [trojan]=2083 [vmess]=2087 [ss]=8388 [tuic]=8444 [wg]=51820 [awg]=51821 [awg3]=51822 [mtproto]=8445)
 PROTOS=(); CREATED=(); OPEN=()
 
@@ -123,7 +126,7 @@ main() {
     PANEL_SSL=custom
   fi
   case $protos in
-    all) PROTOS=("${ALL_PROTOS[@]}") ;;
+    all) PROTOS=("${DEFAULT_PROTOS[@]}") ;;
     minimal) PROTOS=(reality) ;;
     *) IFS=, read -ra PROTOS <<<"$protos"
        local x
@@ -490,7 +493,20 @@ awg_inbound() { # remark port subnet client-ip suffix mode
 proto_awg() { awg_inbound "AmneziaWG" "${PORTS[awg]}" 10.8.1.0 10.8.1.2/32 awg classic; }
 proto_awg3() { awg_inbound "AmneziaWG-3.1" "${PORTS[awg3]}" 10.8.2.0 10.8.2.2/32 awg3 full; }
 
+telegram_reachable() {
+  local ip
+  for ip in 149.154.167.51 149.154.175.50 91.108.56.130; do
+    timeout 5 bash -c "</dev/tcp/$ip/443" 2>/dev/null && return 0
+  done
+  return 1
+}
+
 proto_mtproto() {
+  # MTProto бесполезен, если сам сервер не достаёт до Telegram (некоторые хостеры его блокируют).
+  if ! telegram_reachable; then
+    warn "MTProto пропущен: с этого сервера недоступны серверы Telegram — прокси для Telegram здесь работать не будет."
+    return
+  fi
   local settings
   settings=$(jq -nc --argjson c "$(client_base mtproto)" '{fakeTlsDomain: "www.cloudflare.com", clients: [$c + {secret: ""}]}')
   add_inbound "MTProto" "${PORTS[mtproto]}" tcp mtproto "$settings" '{}'
@@ -534,8 +550,10 @@ usage() {
   cat <<EOF
 3X-UI со всеми протоколами одной командой
 
-  --protocols all     all (по умолчанию), minimal (только REALITY) или список через запятую:
-                      reality,hy2,xhttp,ws,trojan,vmess,ss,tuic,wg,awg,awg3,mtproto
+  --protocols all     all (по умолчанию — всё, кроме WireGuard), minimal (только REALITY)
+                      или список через запятую: reality,hy2,xhttp,ws,trojan,vmess,ss,tuic,wg,awg,awg3,mtproto
+                      (обычный WireGuard в России блокируется — включайте его, только если сервер и
+                      пользователи за границей)
   --port 443          порт REALITY (TCP) и Hysteria2 (UDP), по умолчанию 443
   --sni сайт          сайт для маскировки (по умолчанию подбирается сам)
   --panel-ssl ip|none сертификат панели: ip — Let's Encrypt на IP (нужен порт 80),
