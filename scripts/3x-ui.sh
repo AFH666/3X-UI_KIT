@@ -200,9 +200,12 @@ main() {
   # shellcheck disable=SC1090
   . "$XUI_ENV"
   TOKEN=$XUI_API_TOKEN
-  local scheme=http
-  [[ $XUI_ACCESS_URL == https://* ]] && scheme=https
-  API="$scheme://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
+  # Панель может уже работать по HTTPS (сертификат ставится после установщика) — пробуем оба.
+  local scheme
+  for scheme in https http; do
+    API="$scheme://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
+    curl -fsk -m 5 -o /dev/null -H "Authorization: Bearer $XUI_API_TOKEN" "$API/server/getNewUUID" 2>/dev/null && break
+  done
   wait_panel
 
   if [[ $PANEL_SSL == custom ]]; then
@@ -271,6 +274,10 @@ main() {
     panel_url="http://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH  (через SSH-туннель: ssh -L $XUI_PANEL_PORT:127.0.0.1:$XUI_PANEL_PORT root@$HOST)"
   fi
   links=$(sub_links)
+  AWG_LINKS=$(SUB_FETCH="$SUB_FETCH-awg" sub_links)
+  TG_LINK=$(SUB_FETCH="$SUB_FETCH-tg" sub_links)
+  [[ -n $AWG_LINKS ]] && links+=$'\n'"$AWG_LINKS"
+  [[ -n $TG_LINK ]] && links+=$'\n'"$TG_LINK"
   umask 077
   {
     echo "3X-UI $XUI_VERSION — данные для входа (файл виден только root)"
@@ -280,6 +287,7 @@ main() {
     echo "Пароль:  $XUI_PASSWORD"
     echo
     [[ $TRUSTED == yes ]] && { echo "Подписка ($NAME) — все протоколы одной ссылкой:"; echo "$SUB_URL"; echo; }
+    [[ $TRUSTED == yes && -n $AWG_LINKS ]] && { echo "AmneziaWG — для AmneziaVPN, Clash Verge, FlClash:"; echo "$SUB_URL-awg"; echo; }
     echo "Отдельные подключения ($NAME):"
     echo "$links"
   } >"$RESULT"
@@ -299,6 +307,13 @@ main() {
     echo "$SUB_URL"
     echo
     qrencode -t ANSIUTF8 -m 1 "$SUB_URL" || true
+    if [[ -n $AWG_LINKS ]]; then
+      echo
+      echo "AmneziaWG — отдельная подписка для Clash Verge и FlClash; в AmneziaVPN импортируйте"
+      echo "ссылки vpn:// из $RESULT:"
+      echo
+      echo "$SUB_URL-awg"
+    fi
   else
     echo "Без сертификата подписка недоступна снаружи — вот ссылки по одной:"
     echo
@@ -344,8 +359,13 @@ tls_json() { # alpn(JSON-массив)
 
 # ---------- протоколы ----------
 
+# AmneziaWG — в отдельной подписке: приложения на Xray и sing-box (Happ, v2rayN, Karing,
+# Hiddify) его не умеют и видят как обычный WireGuard, который не подключается.
 client_base() { # суффикс
-  jq -nc --arg e "$NAME-$1" --arg s "$SUBID" '{email: $e, limitIp: 0, totalGB: 0, expiryTime: 0, enable: true, tgId: 0, subId: $s, comment: "", reset: 0}'
+  local sid=$SUBID
+  [[ $1 == awg* ]] && sid="$SUBID-awg"
+  [[ $1 == mtproto ]] && sid="$SUBID-tg"   # ссылка для Telegram, VPN-приложениям не нужна
+  jq -nc --arg e "$NAME-$1" --arg s "$sid" '{email: $e, limitIp: 0, totalGB: 0, expiryTime: 0, enable: true, tgId: 0, subId: $s, comment: "", reset: 0}'
 }
 uuid() { cat /proc/sys/kernel/random/uuid; }
 rnd() { shuf -i "$1-$2" -n 1; }
@@ -364,9 +384,15 @@ add_inbound() {
     remark: $rm, enable: true, listen: "", port: $port, protocol: $p, settings: $s, streamSettings: $st,
     sniffing: "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"],\"metadataOnly\":false,\"routeOnly\":false}",
     expiryTime: 0, total: 0}')
-  if api POST inbounds/add "$body" >/dev/null; then
-    CREATED+=("$remark"); open_port "$port" "$net"
+  local out
+  out=$(curl -sSk -m 20 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X POST -d "$body" "$API/inbounds/add")
+  if [[ $(jq -r '.success' <<<"$out") != true ]] && grep -q 'Duplicate email' <<<"$out"; then
+    # Клиент с таким именем остался от удалённого подключения — берём уникальное имя.
+    body=$(jq -c --arg sfx "-$(openssl rand -hex 2)" '.settings |= (fromjson | .clients[0].email += $sfx | tojson)' <<<"$body")
+    out=$(curl -sSk -m 20 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X POST -d "$body" "$API/inbounds/add")
   fi
+  [[ $(jq -r '.success' <<<"$out") == true ]] || die "Панель не создала $remark: $(jq -r '.msg // .' <<<"$out" | head -c 300)"
+  CREATED+=("$remark"); open_port "$port" "$net"
 }
 
 open_port() { # port net
@@ -537,6 +563,7 @@ setup_subscription() {
 # Ссылки пользователя — из его же подписки (её собирает сама 3X-UI).
 sub_links() {
   local raw i
+  local SUB_FETCH=${SUB_FETCH}
   for i in $(seq 1 20); do
     # Запрос идёт на этот же сервер, но с настоящим адресом в Host — 3X-UI подставит его в ссылки.
     raw=$(curl -fsSk -m 10 -A "v2rayN/7.0" --connect-to "$HOST:$SUB_PORT:127.0.0.1:$SUB_PORT" \

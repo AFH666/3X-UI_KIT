@@ -29,10 +29,10 @@
 | VLESS WebSocket + TLS | 2053/tcp | всех приложениях |
 | Trojan gRPC + TLS | 2083/tcp | всех приложениях |
 | VMess WebSocket + TLS | 2087/tcp | всех приложениях |
-| Shadowsocks 2022 | 8388/tcp+udp | всех приложениях |
+| Shadowsocks 2022 | 8388/tcp+udp | всех приложениях (на мобильном МТС может блокироваться) |
 | TUIC v5 | 8444/udp | Hiddify, Clash Verge, FlClash, NekoBox |
-| AmneziaWG | 51821/udp | AmneziaWG на роутерах Keenetic, Clash Verge, FlClash |
-| AmneziaWG 3.1 | 51822/udp | AmneziaVPN, Clash Verge, FlClash |
+| AmneziaWG | 51821/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
+| AmneziaWG 3.1 | 51822/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
 | MTProto | 8445/tcp | прокси прямо в Telegram (если сервер сам достаёт до Telegram) |
 
 Каждый протокол проверен настоящим подключением на ядрах Xray, Mihomo и sing-box,
@@ -77,7 +77,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/Reality_Hyster
 | Android | Hiddify, Happ, v2rayNG, FlClash |
 | Windows, macOS, Linux | Hiddify, v2rayN, Clash Verge |
 
-Для AmneziaVPN и Telegram возьмите отдельные ссылки `vpn://` и `tg://` из `/root/3x-ui.txt`.
+**AmneziaWG идёт отдельной подпиской** — её адрес заканчивается на `-awg`. Добавьте её в Clash Verge
+или FlClash, а в AmneziaVPN импортируйте ссылки `vpn://` из `/root/3x-ui.txt`. В общую подписку
+AmneziaWG не попадает: Happ, v2rayN, Karing и Hiddify его не поддерживают.
+Для Telegram — ссылка `tg://` оттуда же.
 
 ## Добавить друга
 
