@@ -28,6 +28,9 @@ import yaml
 
 CONFIG = os.environ.get("KIT_SUB_CONFIG", "/etc/kit-sub/config.json")
 CLASH_UA = re.compile(r"clash|mihomo|flclash|stash|nyanpasu|meta", re.I)
+# AmneziaWG добавляем только приложениям на ядре Mihomo. Karing, Hiddify и другие на sing-box
+# тоже могут просить формат Clash (Karing так и делает), но AmneziaWG не умеют.
+NO_AWG_UA = re.compile(r"karing|hiddify|nekobox|sing-?box|husi|stash|shadowrocket|v2box|streisand|happ|loon|surge|quantumult", re.I)
 SUB_ID = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
 PASS_HEADERS = ("content-type", "content-disposition", "profile-title", "profile-update-interval",
                 "profile-web-page-url", "subscription-userinfo", "support-url", "cache-control")
@@ -134,7 +137,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_plain(502, "subscription backend is unavailable")
 
         clash = bool(CLASH_UA.search(ua)) and "yaml" in headers.get("content-type", "")
-        if code == 200 and clash and not sub_id.endswith(("-awg", "-tg")):
+        awg = clash and not NO_AWG_UA.search(ua)
+        # В журнал — только приложение и что ему отдали, без IP.
+        log(f"{ua[:80]!r} → {'clash+awg' if awg else 'clash' if clash else headers.get('content-type', '?').split(';')[0]}")
+        if code == 200 and awg and not sub_id.endswith(("-awg", "-tg")):
             acode, _, abody = upstream(sub_id + "-awg", ua, host, accept)
             if acode == 200 and abody:
                 try:
