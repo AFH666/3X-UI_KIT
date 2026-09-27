@@ -128,6 +128,21 @@
       case 'ss':
         o.cipher = p.method; o.password = p.password;
         break;
+      case 'tuic':
+        o.uuid = p.uuid; o.password = p.password; o.sni = p.sni; o.alpn = p.alpn;
+        o['congestion-controller'] = p.congestion; o['udp-relay-mode'] = p.udpRelay;
+        o['skip-cert-verify'] = p.insecure || undefined;
+        break;
+      case 'wireguard':
+      case 'amneziawg':
+        o.type = 'wireguard';
+        o.ip = p.address.find((a) => a.includes('.'));
+        o.ipv6 = p.address.find((a) => a.includes(':'));
+        o['private-key'] = p.privateKey; o['public-key'] = p.publicKey;
+        o['pre-shared-key'] = p.preSharedKey || undefined; o.mtu = p.mtu;
+        o.reserved = p.reserved || undefined;
+        if (p.awg) o['amnezia-wg-option'] = p.awg;
+        break;
       case 'hysteria2':
         o.password = p.password; o.sni = p.sni; o.alpn = p.alpn;
         o['skip-cert-verify'] = (p.insecure && !p.pinSHA256) || undefined;
@@ -174,6 +189,7 @@
     };
     if (services.some((s) => s.id === 'telegram')) cfg.sniffer['skip-dst-address'] = ['rule-set:telegram@ipcidr'];
 
+    proxies = proxies.filter((p) => p.type !== 'mtproto');
     if (proxies.length) cfg.proxies = proxies.map(proxy);
     if (opts.subscription) {
       cfg['proxy-providers'] = {

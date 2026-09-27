@@ -78,6 +78,8 @@
       s.fp = q.get('fp') || (security === 'reality' ? 'chrome' : '');
       s.alpn = splitList(q.get('alpn'));
       s.insecure = truthy(q.get('allowInsecure')) || truthy(q.get('insecure'));
+      // Отпечаток сертификата: pcs — имя параметра в ссылках Xray 26, pinSHA256 — в ссылках Hysteria.
+      s.pin = (q.get('pcs') || q.get('pinSHA256') || '').replace(/:/g, '').toLowerCase();
     }
     if (security === 'reality') {
       s.pbk = q.get('pbk') || '';
@@ -194,9 +196,88 @@
     }, hp);
   }
 
-  const PARSERS = { 'vless': parseVless, 'vmess': parseVmess, 'trojan': parseTrojan, 'ss': parseSs, 'hy2': parseHy2, 'hysteria2': parseHy2 };
+  function parseTuic(link) {
+    const u = new URL(link);
+    const uuid = dec(u.username), password = dec(u.password);
+    if (!uuid || !password) throw new Error('в ссылке TUIC нет UUID или пароля');
+    const q = u.searchParams, hp = hostPort(u);
+    return Object.assign({
+      type: 'tuic', name: dec(u.hash.slice(1)), uuid, password,
+      sni: dec(q.get('sni') || '') || hp.server,
+      alpn: splitList(q.get('alpn')).length ? splitList(q.get('alpn')) : ['h3'],
+      congestion: q.get('congestion_control') || 'bbr',
+      udpRelay: q.get('udp_relay_mode') || 'native',
+      insecure: truthy(q.get('allow_insecure')) || truthy(q.get('insecure')),
+    }, hp);
+  }
+
+  function wgAddr(v) {
+    return splitList(v).map((a) => a.replace(/\/\d+$/, ''));
+  }
+
+  function parseWireguard(link) {
+    const u = new URL(link.replace(/^wg:/, 'wireguard:'));
+    const q = u.searchParams, hp = hostPort(u);
+    const priv = dec(u.username);
+    const pub = dec(q.get('publickey') || q.get('publicKey') || '');
+    if (!priv || !pub) throw new Error('в ссылке WireGuard нет ключей');
+    return Object.assign({
+      type: 'wireguard', name: dec(u.hash.slice(1)), privateKey: priv, publicKey: pub,
+      preSharedKey: dec(q.get('presharedkey') || ''), address: wgAddr(q.get('address') || q.get('ip') || ''),
+      mtu: Number(q.get('mtu') || 1420), reserved: q.get('reserved') ? splitList(q.get('reserved')).map(Number) : null,
+    }, hp);
+  }
+
+  // Конфиг wg-quick / AmneziaWG: [Interface] + [Peer]. Параметры Jc…H4 — обфускация AmneziaWG.
+  function parseWgConf(text, name) {
+    const sec = {};
+    let cur = null;
+    text.split(/\r?\n/).forEach((line) => {
+      const l = line.trim();
+      const m = /^\[(\w+)\]$/.exec(l);
+      if (m) { cur = m[1].toLowerCase(); sec[cur] = sec[cur] || {}; return; }
+      const kv = /^([A-Za-z0-9]+)\s*=\s*(.*)$/.exec(l);
+      if (kv && cur) sec[cur][kv[1].toLowerCase()] = kv[2].trim();
+      const c = /^#\s*(.+)$/.exec(l);
+      if (c && !name) name = c[1];
+    });
+    const i = sec.interface || {}, p = sec.peer || {};
+    if (!i.privatekey || !p.publickey || !p.endpoint) throw new Error('конфиг WireGuard неполный');
+    const ep = /^\[?([^\]]+?)\]?:(\d+)$/.exec(p.endpoint);
+    if (!ep) throw new Error('в конфиге WireGuard неверный Endpoint');
+    const awgKeys = ['jc', 'jmin', 'jmax', 's1', 's2', 's3', 's4', 'h1', 'h2', 'h3', 'h4', 'i1', 'i2', 'i3', 'i4', 'i5'];
+    const awg = {};
+    awgKeys.forEach((k) => { if (i[k] !== undefined && i[k] !== '') awg[k] = /^\d+$/.test(i[k]) ? Number(i[k]) : i[k]; });
+    const isAwg = Object.keys(awg).length > 0;
+    return {
+      type: isAwg ? 'amneziawg' : 'wireguard', name: name || (isAwg ? 'amneziawg' : 'wireguard') + '-' + ep[1],
+      server: ep[1], port: int(ep[2], 'порт'), privateKey: i.privatekey, publicKey: p.publickey,
+      preSharedKey: p.presharedkey || '', address: wgAddr(i.address || ''), mtu: Number(i.mtu || 1420),
+      dns: splitList(i.dns || ''), awg: isAwg ? awg : null, reserved: null,
+    };
+  }
+
+  function parseVpn(link) {
+    let text;
+    try { text = b64decode(link.slice('vpn://'.length).split('#')[0]); } catch (e) { throw new Error('ссылка vpn:// повреждена'); }
+    if (!/\[Interface\]/.test(text)) throw new Error('формат vpn:// не поддерживается — нужен конфиг AmneziaWG');
+    return parseWgConf(text, dec(link.split('#')[1] || ''));
+  }
+
+  function parseTg(link) {
+    const u = new URL(link.replace(/^https:\/\/t\.me\/proxy/, 'tg://proxy'));
+    const q = u.searchParams;
+    if (!q.get('server') || !q.get('secret')) throw new Error('в ссылке MTProto нет сервера или секрета');
+    return { type: 'mtproto', name: 'mtproto-' + q.get('server'), server: q.get('server'), port: int(q.get('port') || '443', 'порт'), secret: q.get('secret') };
+  }
+
+  const PARSERS = {
+    'vless': parseVless, 'vmess': parseVmess, 'trojan': parseTrojan, 'ss': parseSs, 'hy2': parseHy2, 'hysteria2': parseHy2,
+    'tuic': parseTuic, 'wireguard': parseWireguard, 'wg': parseWireguard, 'vpn': parseVpn, 'tg': parseTg,
+  };
 
   function parseLink(line) {
+    if (/^https:\/\/t\.me\/proxy\?/.test(line)) line = line.replace(/^https:\/\/t\.me\/proxy/, 'tg://proxy');
     const m = /^([a-z0-9]+):\/\//i.exec(line);
     if (!m) throw new Error('это не ссылка на подключение');
     const p = PARSERS[m[1].toLowerCase()];
@@ -233,7 +314,7 @@
     return { proxies: ok, errors };
   }
 
-  const api = { parseLink, parseText, b64decode };
+  const api = { parseLink, parseText, parseWgConf, b64decode };
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.PM = Object.assign(root.PM || {}, api);
 })(typeof window !== 'undefined' ? window : globalThis);

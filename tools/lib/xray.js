@@ -20,7 +20,8 @@
       st.rawSettings = { header: { type: 'http', request: { path: [t.path], headers: t.host ? { Host: [t.host] } : {} } } };
     }
     if (s.security === 'tls') {
-      st.tlsSettings = clean({ serverName: s.sni, fingerprint: s.fp, alpn: s.alpn.length ? s.alpn : undefined, allowInsecure: s.insecure || undefined });
+      // В Xray 26 allowInsecure удалён: самоподписанный сертификат принимается только по отпечатку.
+      st.tlsSettings = clean({ serverName: s.sni, fingerprint: s.fp, alpn: s.alpn.length ? s.alpn : undefined, pinnedPeerCertSha256: s.pin || undefined });
     }
     if (s.security === 'reality') {
       st.realitySettings = clean({ serverName: s.sni, fingerprint: s.fp || 'chrome', publicKey: s.pbk, shortId: s.sid, spiderX: s.spx });
@@ -53,10 +54,26 @@
           tag, protocol: 'shadowsocks',
           settings: { servers: [{ address: p.server, port: p.port, method: p.method, password: p.password }] },
         };
+      case 'hysteria2':
+        return {
+          tag, protocol: 'hysteria',
+          settings: { address: p.server, port: p.port, version: 2 },
+          streamSettings: {
+            network: 'hysteria', security: 'tls',
+            hysteriaSettings: { version: 2, auth: p.password, udpIdleTimeout: 60 },
+            tlsSettings: clean({ serverName: p.sni, alpn: p.alpn.length ? p.alpn : ['h3'], pinnedPeerCertSha256: p.pinSHA256 || undefined }),
+          },
+        };
+      case 'wireguard':
+        return {
+          tag, protocol: 'wireguard',
+          settings: clean({ secretKey: p.privateKey, address: p.address, mtu: p.mtu, reserved: p.reserved || undefined,
+            peers: [clean({ publicKey: p.publicKey, preSharedKey: p.preSharedKey, endpoint: p.server + ':' + p.port, allowedIPs: ['0.0.0.0/0', '::/0'] })] }),
+        };
       default:
-        throw new Error(p.type === 'hysteria2'
-          ? 'Hysteria2 в XKeen работает через ядро Mihomo — возьмите генератор Mihomo'
-          : 'протокол ' + p.type + ' не поддерживается Xray');
+        throw new Error({ tuic: 'TUIC не поддерживается Xray — возьмите генератор Mihomo',
+          amneziawg: 'AmneziaWG не поддерживается Xray — возьмите генератор Mihomo',
+          mtproto: 'MTProto — это прокси для Telegram, в Xray он не нужен' }[p.type] || 'протокол ' + p.type + ' не поддерживается Xray');
     }
   }
 
@@ -137,7 +154,10 @@
     const mainTag = opts.tag || 'vless-reality';
     const skipped = [];
     const outs = [];
+    const warnings = [];
     proxies.forEach((p) => {
+      const insecure = (p.tls && p.tls.insecure && !p.tls.pin) || (p.type === 'hysteria2' && p.insecure && !p.pinSHA256);
+      if (insecure) warnings.push(p.name + ': в ссылке отключена проверка сертификата, а Xray 26 так не умеет — нужен отпечаток (pcs) или настоящий сертификат');
       try {
         const tag = outs.length === 0 ? mainTag : mainTag + '-' + (outs.length + 1);
         outs.push(outbound(p, tag));
@@ -169,7 +189,7 @@
       '04_outbounds.json': Object.assign({ outbounds: outs }, obs || {}),
       '05_routing.json': rt,
     };
-    return { files, skipped, count: outs.length - 2 };
+    return { files, skipped, warnings, count: outs.length - 2 };
   }
 
   const api = { buildXray: build, XRAY_SERVICES: SERVICES, XRAY_BASES: BASES, xrayServiceAvailable: available };

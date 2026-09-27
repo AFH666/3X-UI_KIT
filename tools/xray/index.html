@@ -24,8 +24,8 @@
     <h2><span class="num">1</span>Ссылки на серверы</h2>
     <textarea id="links" class="mono" spellcheck="false" placeholder="vless://…&#10;По одной на строку. Можно вставить подписку в base64 целиком."></textarea>
     <div class="parsed" id="parsed"></div>
-    <p class="hint">Поддерживаются vless (REALITY, TLS, ws, gRPC, xhttp, httpupgrade), vmess, trojan и shadowsocks.
-      Несколько серверов — Xray сам выберет самый быстрый. Hysteria2 работает через <a href="../mihomo/">Mihomo</a>.</p>
+    <p class="hint">Поддерживаются vless (REALITY, TLS, ws, gRPC, xhttp, httpupgrade), vmess, trojan, shadowsocks, Hysteria2 и WireGuard.
+      Несколько серверов — Xray сам выберет самый быстрый. TUIC и AmneziaWG работают через <a href="../mihomo/">Mihomo</a>.</p>
   </section>
 
   <section class="step">
@@ -154,6 +154,7 @@
     const notes = [];
     if (r.count > 1) notes.push('Серверов: ' + r.count + '. Xray будет каждую минуту проверять их и выбирать самый быстрый.');
     if (r.skipped.length) notes.push('Пропущено: ' + r.skipped.map((s) => s.name + ' — ' + s.error).join('; '));
+    (r.warnings || []).forEach((w) => notes.push(w));
     $('#note').innerHTML = notes.map((n) => '<div class="msg warn">' + esc(n) + '</div>').join('');
   }
 

@@ -61,7 +61,7 @@ test('подписка в base64 и ошибки по строкам', () => {
   const r = parseText(sub);
   assert.equal(r.proxies.length, 2);
   assert.equal(r.errors.length, 2);
-  assert.match(r.errors[1].error, /tuic/);
+  assert.match(r.errors[1].error, /TUIC/);
 });
 
 test('одинаковые имена становятся уникальными', () => {
@@ -83,8 +83,8 @@ test('Xray: теги, балансировщик и маршрутизация',
   const rules = one.files['05_routing.json'].routing.rules;
   assert.equal(rules[rules.length - 1].outboundTag, 'direct');
   const multi = buildXray(parseText([REALITY, WS_TLS, HY2].join('\n')).proxies, {});
-  assert.equal(multi.count, 2);
-  assert.equal(multi.skipped.length, 1);
+  assert.equal(multi.count, 3);
+  assert.equal(multi.skipped.length, 0);
   assert.ok(multi.files['05_routing.json'].routing.balancers);
 });
 
@@ -93,6 +93,30 @@ test('Xray: сервисы без нужной геобазы не попада�
   const s = JSON.stringify(r.files['05_routing.json']);
   assert.ok(!s.includes('twitter'));
   assert.ok(s.includes('ext:zkeen.dat:youtube'));
+});
+
+test('TUIC, WireGuard, AmneziaWG (vpn://) и MTProto', () => {
+  const t = parseLink('tuic://d017584f-52ea-43c8-a420-9d559f27b96a:secret@t.example.com:8444?alpn=h3&congestion_control=bbr&udp_relay_mode=native#tuic');
+  assert.equal(t.type, 'tuic');
+  assert.equal(t.password, 'secret');
+  const w = parseLink('wireguard://cHJpdg%3D%3D@w.example.com:51820?address=10.0.0.2%2F32&mtu=1420&publickey=cHVi#wg');
+  assert.deepEqual(w.address, ['10.0.0.2']);
+  const conf = '[Interface]\nPrivateKey = cHJpdg==\nAddress = 10.8.1.2/32\nJc = 4\nJmin = 40\nJmax = 70\nS1 = 20\nS2 = 30\nH1 = 11\nH2 = 22\nH3 = 33\nH4 = 44\n[Peer]\nPublicKey = cHVi\nEndpoint = a.example.com:51821\n';
+  const a = parseLink('vpn://' + Buffer.from(conf).toString('base64'));
+  assert.equal(a.type, 'amneziawg');
+  assert.equal(a.awg.jc, 4);
+  assert.equal(parseLink('tg://proxy?server=m.example.com&port=8445&secret=ee00').type, 'mtproto');
+  assert.equal(parseLink('https://t.me/proxy?server=m.example.com&port=8445&secret=ee00').port, 8445);
+});
+
+test('Xray 26: вместо allowInsecure — отпечаток или предупреждение', () => {
+  const insecure = WS_TLS.replace('#', '&allowInsecure=1#');
+  const r = buildXray(parseText(insecure).proxies, {});
+  assert.ok(!JSON.stringify(r.files).includes('allowInsecure'));
+  assert.equal(r.warnings.length, 1);
+  const pinned = buildXray(parseText(WS_TLS.replace('#', '&pcs=AB:CD#')).proxies, {});
+  assert.equal(pinned.files['04_outbounds.json'].outbounds[0].streamSettings.tlsSettings.pinnedPeerCertSha256, 'abcd');
+  assert.equal(pinned.warnings.length, 0);
 });
 
 test('Mihomo: порты XKeen и прокси', () => {
