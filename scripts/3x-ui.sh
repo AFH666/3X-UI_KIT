@@ -295,6 +295,7 @@ main() {
   local panel_url links
   if [[ $SINGLE == yes ]]; then
     panel_url="https://$HOST/${XUI_WEB_BASE_PATH#/}"
+    panel_url="${panel_url%/}/"
   elif [[ $TRUSTED == yes ]]; then
     panel_url="https://$HOST:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH"
   else
@@ -782,6 +783,8 @@ server {
     set_real_ip_from 127.0.0.1;
     real_ip_header proxy_protocol;
     server_tokens off;
+    # Иначе редирект «добавить слеш» уйдёт на внутренний порт nginx.
+    absolute_redirect off;
     access_log off;
 $locs
     location $SUB_PATH {
