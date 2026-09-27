@@ -8,9 +8,9 @@ fs.rmSync(out, { recursive: true, force: true });
 const rows = [];
 proxies.filter((p) => p.type !== 'mtproto').forEach((p, i) => {
   // Тестовый сервер с самоподписанным сертификатом — разрешаем клиентам его принять.
-  if (p.tls && p.tls.security === 'tls') { p.tls.insecure = true; p.tls.pin = PIN; }
-  if (p.type === 'hysteria2' || p.type === 'tuic') p.insecure = true;
-  if (p.type === 'hysteria2') p.pinSHA256 = PIN;
+  if (PIN && p.tls && p.tls.security === "tls") { p.tls.insecure = true; p.tls.pin = PIN; }
+  if (PIN && (p.type === "hysteria2" || p.type === "tuic")) p.insecure = true;
+  if (PIN && p.type === "hysteria2") p.pinSHA256 = PIN;
   const id = String(i).padStart(2, '0') + '-' + p.name.replace(/[^a-z0-9-]/gi, '').slice(0, 24);
   const dir = path.join(out, id);
   fs.mkdirSync(dir, { recursive: true });

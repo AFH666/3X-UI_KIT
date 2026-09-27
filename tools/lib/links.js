@@ -245,7 +245,8 @@
     if (!i.privatekey || !p.publickey || !p.endpoint) throw new Error('конфиг WireGuard неполный');
     const ep = /^\[?([^\]]+?)\]?:(\d+)$/.exec(p.endpoint);
     if (!ep) throw new Error('в конфиге WireGuard неверный Endpoint');
-    const awgKeys = ['jc', 'jmin', 'jmax', 's1', 's2', 's3', 's4', 'h1', 'h2', 'h3', 'h4', 'i1', 'i2', 'i3', 'i4', 'i5'];
+    const awgKeys = ['jc', 'jmin', 'jmax', 's1', 's2', 's3', 's4', 'h1', 'h2', 'h3', 'h4', 'i1', 'i2', 'i3', 'i4', 'i5',
+      'headerprotectionkey', 'contentpaddingaddition', 'rekeyaftertime', 'rejectaftertime', 'rekeytimeout', 'keepalivetimeout', 'maxhandshakeattempts'];
     const awg = {};
     awgKeys.forEach((k) => { if (i[k] !== undefined && i[k] !== '') awg[k] = /^\d+$/.test(i[k]) ? Number(i[k]) : i[k]; });
     const isAwg = Object.keys(awg).length > 0;

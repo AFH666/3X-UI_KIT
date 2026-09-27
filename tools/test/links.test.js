@@ -119,6 +119,16 @@ test('Xray 26: вместо allowInsecure — отпечаток или пред
   assert.equal(pinned.warnings.length, 0);
 });
 
+test('Mihomo: AmneziaWG 3.1 — имена параметров Mihomo и version: 3', () => {
+  const conf = '[Interface]\nPrivateKey = cHJpdg==\nAddress = 10.8.2.2/32\nJc = 3\nJmin = 49\nJmax = 139\nS1 = 141\nS2 = 92\nS3 = 22\nS4 = 18\nH1 = 5\nH2 = 6\nH3 = 7\nH4 = 8\nI1 = <r 89>\nHeaderProtectionKey = a2V5\nRekeyTimeout = 5-6\n[Peer]\nPublicKey = cHVi\nEndpoint = a.example.com:51822\n';
+  const r = buildMihomo(parseText('vpn://' + Buffer.from(conf).toString('base64')).proxies, { secret: 'x' });
+  const o = r.config.proxies[0]['amnezia-wg-option'];
+  assert.equal(o['header-protection-key'], 'a2V5');
+  assert.equal(o['rekey-timeout'], '5-6');
+  assert.equal(o.version, 3);
+  assert.equal(o.h1, '5');
+});
+
 test('Mihomo: порты XKeen и прокси', () => {
   const r = buildMihomo(parseText([REALITY, HY2, SS_2022].join('\n')).proxies, { secret: 'x' });
   assert.equal(r.config['redir-port'], 5000);

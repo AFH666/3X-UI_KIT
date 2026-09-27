@@ -11,4 +11,29 @@ Xray, Mihomo, sing-box и официальным клиентом AmneziaWG. П�
 4. Прогон в клиентском контейнере с бинарниками в `/cl`: `bash matrix-run.sh`.
 5. AmneziaWG: `awg-set.sh classic|mid|full` меняет обфускацию на сервере.
 
-Результат на 2026-09-27 (3X-UI 3.8.5, Xray 26.6.27, Mihomo 1.19.31, sing-box 1.14.2) — в описании коммита.
+Без `PIN` (сервер с доверенным сертификатом) клиенты проверяют сертификат как обычно.
+
+## Результат 2026-09-27
+
+3X-UI 3.8.5, Xray 26.6.27, Mihomo 1.19.31, sing-box 1.14.2, amneziawg-tools 3.1.
+Сервер поставлен `scripts/3x-ui.sh` с доверенным сертификатом, ссылки взяты из его подписки.
+
+| Протокол | Xray | Mihomo | sing-box |
+|---|---|---|---|
+| VLESS REALITY | ✓ | ✓ | ✓ |
+| Hysteria2 | ✓ | ✓ | ✓ |
+| VLESS XHTTP + REALITY | ✓ | ✓ | — |
+| VLESS WS + TLS | ✓ | ✓ | ✓ |
+| Trojan gRPC + TLS | ✓ | ✓ | ✓ |
+| VMess WS + TLS | ✓ | ✓ | ✓ |
+| Shadowsocks 2022 | ✓ | ✓ | ✓ |
+| TUIC v5 | — | ✓ | ✓ |
+| WireGuard | ✓ | ✓ | ✓ |
+| AmneziaWG (классика) | — | ✓ | — |
+| AmneziaWG 3.1 | — | ✓ | — |
+
+Подписка в формате Clash (User-Agent Clash Verge) — все 11 прокси ✓ в Mihomo.
+Официальный клиент AmneziaWG 3.1 подключается к AmneziaWG 3.1.
+MTProto: `mtg doctor` — все дата-центры Telegram доступны.
+Со своим (самоподписанным) сертификатом подписка Clash от 3X-UI не передаёт Mihomo отпечаток —
+TLS-протоколы в ней не работают; ссылки с `pcs` работают.

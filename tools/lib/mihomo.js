@@ -141,7 +141,20 @@
         o['private-key'] = p.privateKey; o['public-key'] = p.publicKey;
         o['pre-shared-key'] = p.preSharedKey || undefined; o.mtu = p.mtu;
         o.reserved = p.reserved || undefined;
-        if (p.awg) o['amnezia-wg-option'] = p.awg;
+        // Параметры AmneziaWG в именах Mihomo. Для 3.1 (есть ключ защиты заголовков)
+        // обязателен version: 3 — без него Mihomo не подключается к такому серверу.
+        if (p.awg) {
+          const names = { headerprotectionkey: 'header-protection-key', contentpaddingaddition: 'content-padding-addition',
+            rekeyaftertime: 'rekey-after-time', rejectaftertime: 'reject-after-time', rekeytimeout: 'rekey-timeout',
+            keepalivetimeout: 'keepalive-timeout', maxhandshakeattempts: 'max-handshake-attempts' };
+          const c = {};
+          Object.keys(p.awg).forEach((k) => {
+            const v = p.awg[k];
+            c[names[k] || k] = /^h[1-4]$/.test(k) ? String(v) : v;
+          });
+          if (c['header-protection-key']) c.version = 3;
+          o['amnezia-wg-option'] = c;
+        }
         break;
       case 'hysteria2':
         o.password = p.password; o.sni = p.sni; o.alpn = p.alpn;
