@@ -29,7 +29,7 @@
 | VLESS WebSocket + TLS | 2053/tcp | всех приложениях |
 | Trojan gRPC + TLS | 2083/tcp | всех приложениях |
 | VMess WebSocket + TLS | 2087/tcp | всех приложениях |
-| Shadowsocks 2022 | 8388/tcp+udp | всех приложениях (на мобильном МТС может блокироваться) |
+| Shadowsocks 2022 | 8388/tcp+udp | всех приложениях (мобильный МТС его блокирует, по Wi-Fi работает) |
 | TUIC v5 | 8444/udp | Hiddify, Clash Verge, FlClash, NekoBox |
 | AmneziaWG | 51821/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
 | AmneziaWG 3.1 | 51822/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
