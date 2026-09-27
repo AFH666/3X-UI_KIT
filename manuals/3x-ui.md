@@ -25,15 +25,21 @@
 |---|---|---|
 | VLESS REALITY | 443/tcp | всех приложениях |
 | Hysteria2 | 443/udp | всех приложениях |
-| VLESS XHTTP + REALITY | 8443/tcp | v2rayN, Happ, Clash Verge, FlClash |
-| VLESS WebSocket + TLS | 2053/tcp | всех приложениях |
-| Trojan gRPC + TLS | 2083/tcp | всех приложениях |
-| VMess WebSocket + TLS | 2087/tcp | всех приложениях |
+| VLESS XHTTP + REALITY | 443/tcp | v2rayN, Happ, Clash Verge, FlClash |
+| VLESS WebSocket + TLS | 443/tcp | всех приложениях |
+| Trojan gRPC + TLS | 443/tcp | всех приложениях |
+| VMess WebSocket + TLS | 443/tcp | всех приложениях |
 | Shadowsocks 2022 | 8388/tcp+udp | всех приложениях (мобильный МТС его блокирует, по Wi-Fi работает) |
 | TUIC v5 | 8444/udp | Hiddify, Clash Verge, FlClash, NekoBox |
 | AmneziaWG | 51821/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
 | AmneziaWG 3.1 | 51822/udp | AmneziaVPN, AmneziaWG, Clash Verge, FlClash |
-| MTProto | 8445/tcp | прокси прямо в Telegram (если сервер сам достаёт до Telegram) |
+| MTProto | 443/tcp | прокси прямо в Telegram (если сервер сам достаёт до Telegram) |
+
+**Все TCP-протоколы, панель и подписка работают через один порт 443.** Его слушает nginx:
+по имени сайта в запросе (SNI) он узнаёт REALITY, XHTTP и MTProto, остальное расшифровывает
+и разводит по секретным путям, а на всё прочее показывает сайт-заглушку. Снаружи у сервера
+открыты только 443, 80 (для продления сертификата), SSH и UDP-порты. Настоящие IP клиентов
+доходят до панели, поэтому лимит устройств работает.
 
 Каждый протокол проверен настоящим подключением на ядрах Xray, Mihomo и sing-box,
 в том числе через интернет к серверу в России — стенд лежит в [tests/matrix](../tests/matrix/).
@@ -109,6 +115,7 @@ kit user add sasha --gb 50 --days 30
 | `--cert fullchain.pem --key privkey.pem --host домен` | свой сертификат, например для домена |
 | `--sni www.samsung.com` | свой сайт для маскировки REALITY |
 | `--no-ufw` | не трогать файрвол |
+| `--multi-port` | прежняя схема: у каждого протокола свой порт, без nginx |
 
 ## Как устроена подписка
 

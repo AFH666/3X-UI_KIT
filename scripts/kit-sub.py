@@ -130,8 +130,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def setup(self):
         # TLS-рукопожатие — в потоке запроса, а не в общем цикле приёма соединений.
+        # Без сертификата (за nginx, на 127.0.0.1) работаем по обычному HTTP.
         self.request.settimeout(self.timeout)
-        self.request = self.server.ssl_ctx.wrap_socket(self.request, server_side=True)
+        if self.server.ssl_ctx is not None:
+            self.request = self.server.ssl_ctx.wrap_socket(self.request, server_side=True)
         super().setup()
 
     def handle(self):
@@ -208,7 +210,12 @@ class Server(http.server.ThreadingHTTPServer):
 
 
 def main():
-    cert, key = CONF["cert"], CONF["key"]
+    cert, key = CONF.get("cert"), CONF.get("key")
+    if not cert:
+        srv = Server((CONF.get("listen", "127.0.0.1"), int(CONF["port"])), Handler)
+        log(f"kit-sub слушает http://{CONF.get('listen', '127.0.0.1')}:{CONF['port']}{PATH} (TLS снимает nginx)")
+        srv.serve_forever()
+        return
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(cert, key)

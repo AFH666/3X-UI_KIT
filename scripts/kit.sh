@@ -137,6 +137,7 @@ cmd_link() {
       grep -q '://' <<<"$raw" || raw=$(base64 -d <<<"$raw" 2>/dev/null || true)
       out+=$(grep -E '^(vpn|tg)://' <<<"$raw" || true)$'\n'
     done
+    [[ ${SINGLE:-no} == yes ]] && out=$(sed "s/^\(tg:\/\/proxy?\)\(.*\)port=${MTPROTO_INNER:-10445}/\1\2port=443/" <<<"$out")
     echo; grep . <<<"$out" || echo "Отдельных ссылок нет."
   fi
 }

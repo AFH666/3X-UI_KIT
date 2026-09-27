@@ -30,6 +30,10 @@ ALL_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic wg awg awg3 mtproto)
 DEFAULT_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic awg awg3 mtproto)
 declare -A PORTS=([xhttp]=8443 [ws]=2053 [trojan]=2083 [vmess]=2087 [ss]=8388 [tuic]=8444 [wg]=51820 [awg]=51821 [awg3]=51822 [mtproto]=8445)
 PROTOS=(); CREATED=(); OPEN=()
+# Режим «всё TCP на 443»: nginx разводит по SNI и путям, подключения слушают только localhost.
+SINGLE=no
+declare -A INNER=([reality]=10443 [xhttp]=10444 [mtproto]=10445 [web]=10446 [ws]=10451 [vmess]=10452 [trojan]=10453 [sub]=10460)
+SNI2=""; SNI3=""
 
 if [[ -t 1 ]]; then
   G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'
@@ -100,7 +104,7 @@ main() {
     die "3X-UI уже установлена другим способом — не трогаю её. Удалите её (x-ui uninstall) или добавьте REALITY в панели вручную."
   fi
 
-  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey=""
+  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey="" multi=no
   while [[ $# -gt 0 ]]; do
     case $1 in
       --port) PORT=$2; shift 2 ;;
@@ -110,6 +114,7 @@ main() {
       --user) NAME=$2; shift 2 ;;
       --protocols) protos=$2; shift 2 ;;
       --cert) ucert=$2; shift 2 ;;
+      --multi-port) multi=yes; shift ;;
       --key) ukey=$2; shift 2 ;;
       --no-ufw) UFW=no; shift ;;
       -y|--yes) yes=yes; shift ;;
@@ -132,7 +137,7 @@ main() {
        local x
        for x in "${PROTOS[@]}"; do [[ " ${ALL_PROTOS[*]} " == *" $x "* ]] || die "Неизвестный протокол: $x. Доступны: ${ALL_PROTOS[*]}"; done ;;
   esac
-  if port_busy "$PORT" tcp && ! { [[ -f $XUI_ENV ]] && ss -H -ltnp "sport = :$PORT" | grep -q xray; }; then
+  if port_busy "$PORT" tcp && ! { [[ -f $XUI_ENV ]] && ss -H -ltnp "sport = :$PORT" | grep -q -E 'xray|nginx'; }; then
     die "Порт $PORT/tcp уже занят. REALITY нужен свободный порт — укажите другой: --port 8443"
   fi
 
@@ -172,6 +177,13 @@ main() {
     die "$SNI не отвечает по TLS 1.3 + HTTP/2 — REALITY с ним работать не будет. Выберите другой сайт."
   fi
   say "Маскировка: ${B}$SNI${N}"
+  # Для режима «всё на 443» XHTTP и MTProto нужны свои сайты: nginx различает их по SNI.
+  for s in "${SNI_CANDIDATES[@]}"; do
+    [[ $s == "$SNI" ]] && continue
+    if [[ -z $SNI2 ]] && sni_ok "$s"; then SNI2=$s; continue; fi
+    [[ -z $SNI3 && -n $SNI2 ]] && { SNI3=$s; break; }
+  done
+  SNI2=${SNI2:-$SNI}; SNI3=${SNI3:-www.cloudflare.com}
 
   # --- официальный установщик 3X-UI с закреплённой версией ---
   local panel_port panel_path panel_user panel_pass tmp
@@ -246,6 +258,15 @@ main() {
   # --- подключения: все выбранные протоколы, один subId на пользователя ---
   EXISTING=$(api GET inbounds/list)
   SUBID=""
+  # «Всё на 443» — для новых установок с доверенным сертификатом. Старую многопортовую
+  # установку не переделываем: перенос работающих подключений — осознанное решение.
+  if [[ $TRUSTED == yes && $multi == no ]]; then
+    if jq -e 'any(.[]; .remark == "REALITY" and (.listen // "") != "127.0.0.1")' <<<"$EXISTING" >/dev/null; then
+      warn "Установка уже работает в режиме с отдельными портами — оставляю его."
+    else
+      SINGLE=yes
+    fi
+  fi
   local p
   for p in "${PROTOS[@]}"; do "proto_$p"; done
   # Первый пользователь — сразу на всех протоколах (как «kit user add»).
@@ -253,6 +274,7 @@ main() {
 
   # --- подписка: ссылки, Clash/Mihomo и JSON с автоопределением клиента ---
   setup_subscription
+  [[ $SINGLE == yes ]] && setup_nginx
   install_kit_cli
 
   # --- файрвол ---
@@ -261,7 +283,7 @@ main() {
     ssh_port=$(ss -H -ltnp 2>/dev/null | awk '/sshd/ {sub(/.*:/,"",$4); print $4; exit}')
     ssh_port=${ssh_port:-22}
     OPEN+=("$ssh_port/tcp")
-    [[ $TRUSTED == yes ]] && OPEN+=("$XUI_PANEL_PORT/tcp" "$SUB_PORT/tcp")
+    [[ $TRUSTED == yes && $SINGLE == no ]] && OPEN+=("$XUI_PANEL_PORT/tcp" "$SUB_PORT/tcp")
     [[ $PANEL_SSL == ip ]] && OPEN+=("80/tcp")
     say "Настраиваю ufw: ${OPEN[*]}"
     local o
@@ -271,7 +293,9 @@ main() {
 
   # --- итог ---
   local panel_url links
-  if [[ $TRUSTED == yes ]]; then
+  if [[ $SINGLE == yes ]]; then
+    panel_url="https://$HOST/${XUI_WEB_BASE_PATH#/}"
+  elif [[ $TRUSTED == yes ]]; then
     panel_url="https://$HOST:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH"
   else
     panel_url="http://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH  (через SSH-туннель: ssh -L $XUI_PANEL_PORT:127.0.0.1:$XUI_PANEL_PORT root@$HOST)"
@@ -282,6 +306,8 @@ main() {
   extra=$(sub_links "$SUBID-awg" 1; sub_links "$SUBID-tg" 1)
   [[ -n $extra ]] && links+=$'\n'"$extra"
   AWG_LINKS=$(grep '^vpn://' <<<"$links" || true)
+  # MTProto слушает localhost, а клиенты приходят через nginx на 443.
+  [[ $SINGLE == yes ]] && links=$(sed "s/^\(tg:\/\/proxy?\)\(.*\)port=${INNER[mtproto]}/\1\2port=443/" <<<"$links")
   umask 077
   {
     echo "3X-UI $XUI_VERSION — данные для входа (файл виден только root)"
@@ -373,20 +399,25 @@ client_base() { # суффикс
 uuid() { cat /proc/sys/kernel/random/uuid; }
 rnd() { shuf -i "$1-$2" -n 1; }
 
-# add_inbound remark port proto(tcp|udp|both) protocol settings stream
+# add_inbound remark port proto(tcp|udp|both|inner) protocol settings stream
+# inner — подключение за nginx: слушает 127.0.0.1, наружу порт не открываем.
 add_inbound() {
-  local remark=$1 port=$2 net=$3 protocol=$4 settings=$5 stream=$6 body
+  local remark=$1 port=$2 net=$3 protocol=$4 settings=$5 stream=$6 body listen=""
+  [[ $net == inner ]] && listen=127.0.0.1
   if jq -e --arg r "$remark" 'any(.[]; .remark == $r)' <<<"$EXISTING" >/dev/null; then
     CREATED+=("$remark"); open_port "$port" "$net"; return
   fi
   # Клиентов в подключение не кладём: пользователь добавляется потом сразу во все подключения.
   settings=$(jq -c 'if has("clients") then .clients = [] else . end' <<<"$settings")
   local n
-  for n in ${net/both/tcp udp}; do
+  local nets=$net
+  [[ $net == both ]] && nets="tcp udp"
+  [[ $net == inner ]] && nets=tcp
+  for n in $nets; do
     if port_busy "$port" "$n"; then warn "$remark пропущен: порт $port/$n занят"; return; fi
   done
-  body=$(jq -nc --arg rm "$remark" --argjson port "$port" --arg p "$protocol" --arg s "$settings" --arg st "$stream" '{
-    remark: $rm, enable: true, listen: "", port: $port, protocol: $p, settings: $s, streamSettings: $st,
+  body=$(jq -nc --arg rm "$remark" --argjson port "$port" --arg p "$protocol" --arg s "$settings" --arg st "$stream" --arg l "$listen" '{
+    remark: $rm, enable: true, listen: $l, port: $port, protocol: $p, settings: $s, streamSettings: $st,
     sniffing: "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"],\"metadataOnly\":false,\"routeOnly\":false}",
     expiryTime: 0, total: 0}')
   local out
@@ -402,9 +433,19 @@ add_inbound() {
 
 open_port() { # port net
   case $2 in
+    inner) ;;
     tcp|udp) OPEN+=("$1/$2") ;;
     both) OPEN+=("$1/tcp" "$1/udp") ;;
   esac
+}
+
+# External Proxy 3X-UI: ссылки ведут на HOST:443, хотя подключение слушает localhost.
+# SNI — только для TLS через nginx: у REALITY своё имя сайта маскировки, его не трогаем.
+ext_proxy() { # forceTls(same|tls) alpn(JSON)
+  local sni=""
+  [[ $HOST =~ ^[0-9.]+$ ]] || sni=$HOST
+  jq -nc --arg f "$1" --arg h "$HOST" --arg sni "$sni" --argjson alpn "${2:-null}" '[{forceTls: $f, dest: $h, port: 443, remark: ""}
+    + (if $f == "tls" then {fingerprint: "chrome", alpn: $alpn} + (if $sni != "" then {sni: $sni} else {} end) else {} end)]'
 }
 
 proto_reality() {
@@ -417,7 +458,12 @@ proto_reality() {
       minClientVer: "", maxClientVer: "", maxTimediff: 0, shortIds: [$sid],
       settings: {publicKey: $k.publicKey, fingerprint: "chrome", serverName: "", spiderX: "/"}},
     tcpSettings: {acceptProxyProtocol: false, header: {type: "none"}}}')
-  add_inbound "REALITY" "$PORT" tcp vless "$settings" "$stream"
+  if [[ $SINGLE == yes ]]; then
+    stream=$(jq -c --argjson e "$(ext_proxy same)" '.externalProxy = $e | .tcpSettings.acceptProxyProtocol = true' <<<"$stream")
+    add_inbound "REALITY" "${INNER[reality]}" inner vless "$settings" "$stream"
+  else
+    add_inbound "REALITY" "$PORT" tcp vless "$settings" "$stream"
+  fi
 }
 
 proto_xhttp() {
@@ -428,28 +474,49 @@ proto_xhttp() {
     network: "xhttp", security: "reality", xhttpSettings: {path: $path, mode: "auto"},
     realitySettings: {target: ($sni + ":443"), serverNames: [$sni], privateKey: $k.privateKey, shortIds: [$sid],
       settings: {publicKey: $k.publicKey, fingerprint: "chrome", spiderX: "/"}}}')
-  add_inbound "XHTTP" "${PORTS[xhttp]}" tcp vless "$settings" "$stream"
+  if [[ $SINGLE == yes ]]; then
+    stream=$(jq -c --arg sni "$SNI2" --argjson e "$(ext_proxy same)" '.realitySettings.target = ($sni + ":443") | .realitySettings.serverNames = [$sni]
+      | .externalProxy = $e | .sockopt = {acceptProxyProtocol: true}' <<<"$stream")
+    add_inbound "XHTTP" "${INNER[xhttp]}" inner vless "$settings" "$stream"
+  else
+    add_inbound "XHTTP" "${PORTS[xhttp]}" tcp vless "$settings" "$stream"
+  fi
 }
 
 proto_ws() {
   local settings stream
   settings=$(jq -nc --arg id "$(uuid)" --argjson c "$(client_base ws)" '{clients: [$c + {id: $id, flow: ""}], decryption: "none"}')
   stream=$(jq -nc --argjson t "$(tls_json '["http/1.1"]')" --arg path "/$(rand_str 10 | tr 'A-Z' 'a-z')" '{network: "ws", security: "tls", wsSettings: {path: $path}, tlsSettings: $t}')
-  add_inbound "VLESS-WS" "${PORTS[ws]}" tcp vless "$settings" "$stream"
+  if [[ $SINGLE == yes ]]; then
+    stream=$(jq -c --argjson e "$(ext_proxy tls '["http/1.1"]')" '{network, wsSettings, security: "none", externalProxy: $e}' <<<"$stream")
+    add_inbound "VLESS-WS" "${INNER[ws]}" inner vless "$settings" "$stream"
+  else
+    add_inbound "VLESS-WS" "${PORTS[ws]}" tcp vless "$settings" "$stream"
+  fi
 }
 
 proto_trojan() {
   local settings stream
   settings=$(jq -nc --arg pw "$(rand_str 16)" --argjson c "$(client_base trojan)" '{clients: [$c + {password: $pw}]}')
   stream=$(jq -nc --argjson t "$(tls_json '["h2"]')" --arg sn "$(rand_str 8 | tr 'A-Z' 'a-z')" '{network: "grpc", security: "tls", grpcSettings: {serviceName: $sn}, tlsSettings: $t}')
-  add_inbound "Trojan-gRPC" "${PORTS[trojan]}" tcp trojan "$settings" "$stream"
+  if [[ $SINGLE == yes ]]; then
+    stream=$(jq -c --argjson e "$(ext_proxy tls '["h2"]')" '{network, grpcSettings, security: "none", externalProxy: $e}' <<<"$stream")
+    add_inbound "Trojan-gRPC" "${INNER[trojan]}" inner trojan "$settings" "$stream"
+  else
+    add_inbound "Trojan-gRPC" "${PORTS[trojan]}" tcp trojan "$settings" "$stream"
+  fi
 }
 
 proto_vmess() {
   local settings stream
   settings=$(jq -nc --arg id "$(uuid)" --argjson c "$(client_base vmess)" '{clients: [$c + {id: $id, security: "auto", alterId: 0}]}')
   stream=$(jq -nc --argjson t "$(tls_json '["http/1.1"]')" --arg path "/$(rand_str 10 | tr 'A-Z' 'a-z')" '{network: "ws", security: "tls", wsSettings: {path: $path}, tlsSettings: $t}')
-  add_inbound "VMess-WS" "${PORTS[vmess]}" tcp vmess "$settings" "$stream"
+  if [[ $SINGLE == yes ]]; then
+    stream=$(jq -c --argjson e "$(ext_proxy tls '["http/1.1"]')" '{network, wsSettings, security: "none", externalProxy: $e}' <<<"$stream")
+    add_inbound "VMess-WS" "${INNER[vmess]}" inner vmess "$settings" "$stream"
+  else
+    add_inbound "VMess-WS" "${PORTS[vmess]}" tcp vmess "$settings" "$stream"
+  fi
 }
 
 proto_ss() {
@@ -542,8 +609,14 @@ proto_mtproto() {
     return
   fi
   local settings
-  settings=$(jq -nc --argjson c "$(client_base mtproto)" '{fakeTlsDomain: "www.cloudflare.com", clients: [$c + {secret: ""}]}')
-  add_inbound "MTProto" "${PORTS[mtproto]}" tcp mtproto "$settings" '{}'
+  if [[ $SINGLE == yes ]]; then
+    # FakeTLS-домен — свой сайт: nginx узнаёт MTProto по нему и передаёт mtg с реальным IP клиента.
+    settings=$(jq -nc --arg d "$SNI3" --argjson c "$(client_base mtproto)" '{fakeTlsDomain: $d, proxyProtocolListener: true, clients: [$c + {secret: ""}]}')
+    add_inbound "MTProto" "${INNER[mtproto]}" inner mtproto "$settings" '{}'
+  else
+    settings=$(jq -nc --argjson c "$(client_base mtproto)" '{fakeTlsDomain: "www.cloudflare.com", clients: [$c + {secret: ""}]}')
+    add_inbound "MTProto" "${PORTS[mtproto]}" tcp mtproto "$settings" '{}'
+  fi
 }
 
 # ---------- пользователи ----------
@@ -608,6 +681,8 @@ install_kit_cli() {
     printf 'SUB_BASE=%q\n' "${SUB_URL%$SUBID}"
     printf 'SUB_PATH=%q\n' "$SUB_PATH"
     printf 'SUB_INTERNAL=%q\n' "${SUB_INTERNAL:-$SUB_PORT}"
+    printf 'SINGLE=%q\n' "$SINGLE"
+    printf 'MTPROTO_INNER=%q\n' "${INNER[mtproto]}"
   } >/etc/kit/kit.env
   chmod 600 /etc/kit/kit.env
   local d src=""
@@ -616,6 +691,130 @@ install_kit_cli() {
   if [[ -n $src ]]; then install -m 755 "$src" /usr/local/bin/kit
   else curl -fsSL --retry 3 -o /usr/local/bin/kit "$KIT_CLI_URL" && chmod 755 /usr/local/bin/kit; fi
   bash -n /usr/local/bin/kit || die "Команда kit скачалась повреждённой"
+}
+
+# ---------- всё на 443: nginx ----------
+
+setup_nginx() {
+  say "Настраиваю nginx: всё TCP через порт 443"
+  apt-get install -y -qq nginx libnginx-mod-stream >/dev/null
+  # Порт 80 нужен Let's Encrypt для продления сертификата — сайт nginx по умолчанию убираем.
+  rm -f /etc/nginx/sites-enabled/default
+
+  # Панель — только через nginx.
+  local all
+  all=$(api POST setting/all '{}')
+  if [[ $(jq -r '.webListen' <<<"$all") != 127.0.0.1 ]]; then
+    api POST setting/update "$(jq -c '.webListen = "127.0.0.1"' <<<"$all")" >/dev/null
+    systemctl restart x-ui
+    wait_panel
+  fi
+
+  install -d -m 755 /var/www/kit
+  [[ -f /var/www/kit/index.html ]] || cat >/var/www/kit/index.html <<'HTML'
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f7f9;color:#1f2328}main{text-align:center;padding:24px}h1{font-weight:600;font-size:28px}p{color:#57606a}</style></head><body><main><h1>Site is under construction</h1><p>Please check back soon.</p></main></body></html>
+HTML
+
+  # Маршруты — из текущих подключений панели: сайты REALITY, пути WebSocket, сервисы gRPC.
+  local list reality_sni xhttp_sni mt_sni locs="" kind path port
+  list=$(api GET inbounds/list)
+  reality_sni=$(jq -r '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
+  xhttp_sni=$(jq -r '.[] | select(.remark == "XHTTP" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
+  mt_sni=$(jq -r '.[] | select(.protocol == "mtproto" and .listen == "127.0.0.1") | (.settings | if type == "string" then fromjson else . end).fakeTlsDomain' <<<"$list")
+  while IFS=$'\t' read -r kind path port; do
+    [[ -n $path ]] || continue
+    if [[ $kind == ws ]]; then
+      locs+="
+    location = $path {
+        proxy_pass http://127.0.0.1:$port;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \"upgrade\";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_protocol_addr;
+        proxy_read_timeout 1h;
+    }"
+    else
+      locs+="
+    location /$path/ {
+        grpc_pass grpc://127.0.0.1:$port;
+        grpc_set_header X-Real-IP \$proxy_protocol_addr;
+        grpc_read_timeout 1h;
+        grpc_send_timeout 1h;
+        client_max_body_size 0;
+    }"
+    fi
+  done < <(jq -r '.[] | select(.listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end) as $st
+    | if $st.network == "ws" then ["ws", $st.wsSettings.path, .port]
+      elif $st.network == "grpc" then ["grpc", $st.grpcSettings.serviceName, .port]
+      else empty end | @tsv' <<<"$list")
+
+  local panel_path=/${XUI_WEB_BASE_PATH#/}
+  panel_path=${panel_path%/}/
+  {
+    echo "# Сгенерировано 3x-ui.sh (3X-UI + Hysteria2 Kit) — перезаписывается при повторном запуске."
+    echo "stream {"
+    echo "    map \$ssl_preread_server_name \$kit_upstream {"
+    [[ -n $reality_sni ]] && echo "        $reality_sni 127.0.0.1:${INNER[reality]};"
+    [[ -n $xhttp_sni && $xhttp_sni != "$reality_sni" ]] && echo "        $xhttp_sni 127.0.0.1:${INNER[xhttp]};"
+    [[ -n $mt_sni ]] && echo "        $mt_sni 127.0.0.1:${INNER[mtproto]};"
+    echo "        default 127.0.0.1:${INNER[web]};"
+    echo "    }"
+    echo "    server {"
+    echo "        listen 443;"
+    echo "        listen [::]:443;"
+    echo "        ssl_preread on;"
+    echo "        proxy_pass \$kit_upstream;"
+    echo "        proxy_protocol on;"
+    echo "        proxy_connect_timeout 10s;"
+    echo "        proxy_timeout 1h;"
+    echo "    }"
+    echo "}"
+  } >/etc/nginx/kit-stream.conf
+  cat >/etc/nginx/conf.d/kit.conf <<NGX
+# Сгенерировано 3x-ui.sh (3X-UI + Hysteria2 Kit) — перезаписывается при повторном запуске.
+server {
+    listen 127.0.0.1:${INNER[web]} ssl http2 proxy_protocol;
+    server_name _;
+    ssl_certificate $CERT;
+    ssl_certificate_key $KEY;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    set_real_ip_from 127.0.0.1;
+    real_ip_header proxy_protocol;
+    server_tokens off;
+    access_log off;
+$locs
+    location $SUB_PATH {
+        proxy_pass http://127.0.0.1:${INNER[sub]};
+        proxy_set_header Host \$host;
+    }
+    location $panel_path {
+        proxy_pass https://127.0.0.1:$XUI_PANEL_PORT;
+        proxy_ssl_verify off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$proxy_protocol_addr;
+        proxy_set_header X-Forwarded-For \$proxy_protocol_addr;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+    location / {
+        root /var/www/kit;
+        index index.html;
+    }
+}
+NGX
+  grep -q 'kit-stream.conf' /etc/nginx/nginx.conf || echo 'include /etc/nginx/kit-stream.conf;' >>/etc/nginx/nginx.conf
+  nginx -t >/tmp/nginx-test.log 2>&1 || { cat /tmp/nginx-test.log >&2; die "nginx не принял конфиг — лог выше."; }
+  systemctl enable nginx >/dev/null 2>&1
+  systemctl restart nginx
+  # Let's Encrypt на IP продлевается каждые несколько дней — nginx раз в сутки перечитывает сертификат.
+  echo '17 4 * * * root systemctl reload nginx >/dev/null 2>&1' >/etc/cron.d/kit-nginx-reload
+  OPEN+=("443/tcp")
+  local i
+  for i in $(seq 1 10); do port_busy 443 tcp && return 0; sleep 1; done
+  die "nginx не открыл порт 443."
 }
 
 # ---------- подписка ----------
@@ -644,7 +843,8 @@ setup_subscription() {
     wait_panel
   fi
   [[ $TRUSTED == yes ]] && install_kit_sub
-  if [[ $TRUSTED == yes ]]; then SUB_URL="https://$HOST:$SUB_PORT$SUB_PATH$SUBID"; else SUB_URL="http://127.0.0.1:$SUB_PORT$SUB_PATH$SUBID"; fi
+  if [[ $SINGLE == yes ]]; then SUB_URL="https://$HOST$SUB_PATH$SUBID"
+  elif [[ $TRUSTED == yes ]]; then SUB_URL="https://$HOST:$SUB_PORT$SUB_PATH$SUBID"; else SUB_URL="http://127.0.0.1:$SUB_PORT$SUB_PATH$SUBID"; fi
   SUB_FETCH="$(if [[ $TRUSTED == yes ]]; then echo https; else echo http; fi)://$HOST:$SUB_PORT$SUB_PATH$SUBID"
 }
 
@@ -662,9 +862,15 @@ install_kit_sub() {
   if [[ -n $src ]]; then install -m 644 "$src" /usr/local/lib/kit-sub/kit_sub.py
   else curl -fsSL --retry 3 -o /usr/local/lib/kit-sub/kit_sub.py "$KIT_SUB_URL"; fi
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" /usr/local/lib/kit-sub/kit_sub.py || die "kit-sub скачался повреждённым"
-  jq -n --arg path "$SUB_PATH" --argjson port "$SUB_PORT" --arg up "http://127.0.0.1:$SUB_INTERNAL" \
-    --arg cert "$CERT" --arg key "$KEY" --arg host "$HOST" \
-    '{listen: "0.0.0.0", port: $port, path: $path, upstream: $up, cert: $cert, key: $key, host: $host}' >/etc/kit-sub/config.json
+  if [[ $SINGLE == yes ]]; then
+    # За nginx: слушаем только localhost, TLS снимает nginx на 443.
+    jq -n --arg path "$SUB_PATH" --argjson port "${INNER[sub]}" --arg up "http://127.0.0.1:$SUB_INTERNAL" --arg host "$HOST" \
+      '{listen: "127.0.0.1", port: $port, path: $path, upstream: $up, host: $host}' >/etc/kit-sub/config.json
+  else
+    jq -n --arg path "$SUB_PATH" --argjson port "$SUB_PORT" --arg up "http://127.0.0.1:$SUB_INTERNAL" \
+      --arg cert "$CERT" --arg key "$KEY" --arg host "$HOST" \
+      '{listen: "0.0.0.0", port: $port, path: $path, upstream: $up, cert: $cert, key: $key, host: $host}' >/etc/kit-sub/config.json
+  fi
   chmod 600 /etc/kit-sub/config.json
   cat >/etc/systemd/system/kit-sub.service <<'UNIT'
 [Unit]
@@ -693,7 +899,9 @@ UNIT
   systemctl enable kit-sub >/dev/null 2>&1
   systemctl restart kit-sub
   local i
-  for i in $(seq 1 20); do port_busy "$SUB_PORT" tcp && return 0; sleep 1; done
+  local kp=$SUB_PORT
+  [[ $SINGLE == yes ]] && kp=${INNER[sub]}
+  for i in $(seq 1 20); do port_busy "$kp" tcp && return 0; sleep 1; done
   journalctl -u kit-sub -n 20 --no-pager >&2 || true
   die "kit-sub не запустился — лог выше."
 }
