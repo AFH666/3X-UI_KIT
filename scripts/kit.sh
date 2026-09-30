@@ -514,19 +514,11 @@ PY
     /root/cert/ip/*) ssl=ip ;;
     /root/cert/custom/*) ssl=custom ;;
   esac
-  # Свой домен (self-steal): имя сайта для REALITY. Сертификат в копию не кладём,
-  # на новом сервере он выпускается заново, когда домен уже ведёт на новый IP.
-  local dom=""
-  if [[ -f /etc/nginx/conf.d/kit.conf ]]; then
-    dom=$(awk '/listen 127\.0\.0\.1:10447 / {f=1} f && $1 == "server_name" {sub(/;$/, "", $2); print $2; exit}' /etc/nginx/conf.d/kit.conf)
-  fi
-  [[ $dom =~ ^[A-Za-z0-9.-]+$ ]] || dom=""
   {
     printf 'BACKUP_KIT_VERSION=%q\n' "$KIT_VERSION"
     printf 'BACKUP_HOST=%q\n' "$HOST"
     printf 'BACKUP_SSL=%q\n' "$ssl"
     printf 'BACKUP_DATE=%q\n' "$(date +%F)"
-    printf 'BACKUP_DOMAIN=%q\n' "$dom"
   } >"$tmp/kit-backup.env"
   (umask 077; tar -czf "$out" -C "$tmp" .)
   chmod 600 "$out"

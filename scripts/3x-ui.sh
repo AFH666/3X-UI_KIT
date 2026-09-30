@@ -99,8 +99,8 @@ domain_points_here() { # домен
   return 1
 }
 
-ask_tty() { # приглашение; ответ – в REPLY
-  read -r -p "$1" REPLY </dev/tty || REPLY=""
+ask_tty() { # приглашение; ответ – в REPLY; не 0, если терминал пропал (обрыв SSH, EOF)
+  read -r -p "$1" REPLY </dev/tty || { REPLY=""; return 1; }
 }
 
 # Вопрос пользователю: чужой сайт по умолчанию или свой домен. Без ответа – стандартный.
@@ -119,20 +119,22 @@ choose_masking() {
   echo "     Сервер притворяется вашим собственным сайтом: на нём настоящая страница и сертификат"
   echo "     Let's Encrypt. Нужно заранее: свой домен, его A-запись на IP этого сервера и свободный"
   echo "     порт 80. Сертификат установщик получит сам."
+  echo "     ${D}Честно: сертификат домена попадает в публичные журналы сертификатов, поэтому связь${N}"
+  echo "     ${D}«домен – сервер» не скрыта. «Надёжнее» не значит «невидимо».${N}"
   echo
   local d="" prev=""
-  ask_tty "Ваш выбор [1]: "
+  ask_tty "Ваш выбор [1]: " || return 0
   [[ $REPLY == 2 ]] || { echo; return 0; }
   while :; do
-    if [[ -n $prev ]]; then ask_tty "Ваш домен [$prev]: "
-    else ask_tty "Ваш домен, например vpn.example.com (пусто – стандартный сайт): "; fi
+    if [[ -n $prev ]]; then ask_tty "Ваш домен [$prev]: " || return 0
+    else ask_tty "Ваш домен, например vpn.example.com (пусто – стандартный сайт): " || return 0; fi
     d=${REPLY,,}; d=${d// /}
     [[ -n $d ]] || d=$prev
     [[ -n $d ]] || return 0
     if [[ ! $d =~ $re_host ]]; then warn "Это не похоже на домен. Пример: vpn.example.com"; prev=""; continue; fi
     if domain_points_here "$d"; then DOMAIN=$d; return 0; fi
     prev=$d
-    ask_tty "Enter – проверить ещё раз (DNS обновляется не сразу), s – стандартный сайт, q – выйти: "
+    ask_tty "Enter – проверить ещё раз (DNS обновляется не сразу), s – стандартный сайт, q – выйти: " || return 0
     case ${REPLY,,} in
       s) return 0 ;;
       q) die "Остановился по вашей просьбе. Ставить можно снова в любой момент." ;;
@@ -146,24 +148,39 @@ issue_domain_cert() {
   local acme=/root/.acme.sh/acme.sh rc=0 log=/var/log/kit-domain-cert.log
   if [[ -s $DOMAIN_CERT_DIR/fullchain.pem && -s $DOMAIN_CERT_DIR/privkey.pem ]] \
     && openssl x509 -in "$DOMAIN_CERT_DIR/fullchain.pem" -noout -checkhost "$DOMAIN" 2>/dev/null | grep -q 'does match' \
+    && openssl x509 -in "$DOMAIN_CERT_DIR/fullchain.pem" -noout -issuer 2>/dev/null | grep -q "Let's Encrypt" \
     && openssl x509 -in "$DOMAIN_CERT_DIR/fullchain.pem" -noout -checkend 864000 >/dev/null 2>&1; then
     say "Сертификат для ${B}$DOMAIN${N} уже есть"
     return 0
   fi
-  [[ -x $acme ]] || die "Не нашёл acme.sh, которым установщик 3X-UI получает сертификаты: не могу выпустить сертификат для $DOMAIN."
-  port_busy 80 tcp && die "Порт 80/tcp занят: Let's Encrypt не сможет проверить домен $DOMAIN."
+  [[ -x $acme ]] || { warn "Не нашёл acme.sh, которым установщик 3X-UI получает сертификаты: не могу выпустить сертификат для $DOMAIN."; return 1; }
+  port_busy 80 tcp && { warn "Порт 80/tcp занят: Let's Encrypt не сможет проверить домен $DOMAIN."; return 1; }
   say "Получаю сертификат Let's Encrypt для ${B}$DOMAIN${N}"
   install -m 600 /dev/null "$log"
   "$acme" --issue -d "$DOMAIN" --standalone --httpport 80 --server letsencrypt --keylength ec-256 >"$log" 2>&1 || rc=$?
   # 2 – сертификат уже свежий, выпускать заново не нужно.
-  [[ $rc == 0 || $rc == 2 ]] || die "Let's Encrypt не выдал сертификат для $DOMAIN. Обычно дело в одном из трёх: A-запись ещё не обновилась, порт 80 закрыт у хостера или домен за проксированием Cloudflare. Лог: $log"
-  install -d -m 755 "$DOMAIN_CERT_DIR"
-  "$acme" --install-cert -d "$DOMAIN" --ecc --fullchain-file "$DOMAIN_CERT_DIR/fullchain.pem" \
-    --key-file "$DOMAIN_CERT_DIR/privkey.pem" --reloadcmd "systemctl reload nginx >/dev/null 2>&1 || true" >>"$log" 2>&1 \
-    || die "Не удалось сохранить сертификат для $DOMAIN. Лог: $log"
+  [[ $rc == 0 || $rc == 2 ]] || { warn "Let's Encrypt не выдал сертификат для $DOMAIN. Обычно дело в одном из трёх: A-запись ещё не обновилась, порт 80 закрыт у хостера или домен за проксированием Cloudflare. Лог: $log"; return 1; }
+  # Каталог и ключ – только для root (nginx читает их от root).
+  install -d -m 700 "$DOMAIN_CERT_DIR"
+  (umask 077; "$acme" --install-cert -d "$DOMAIN" --ecc --fullchain-file "$DOMAIN_CERT_DIR/fullchain.pem" \
+    --key-file "$DOMAIN_CERT_DIR/privkey.pem" --reloadcmd "systemctl reload nginx >/dev/null 2>&1 || true" >>"$log" 2>&1) \
+    || { warn "Не удалось сохранить сертификат для $DOMAIN. Лог: $log"; return 1; }
   chmod 644 "$DOMAIN_CERT_DIR/fullchain.pem"
   chmod 600 "$DOMAIN_CERT_DIR/privkey.pem"
   return 0
+}
+
+# Восстановление из копии не должно застревать на сертификате: сервер поднимаем с временным
+# самоподписанным, а настоящий выпускаем отдельной командой (она же перезагрузит nginx).
+domain_cert_fallback() {
+  local acme=/root/.acme.sh/acme.sh
+  install -d -m 700 "$DOMAIN_CERT_DIR"
+  openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$DOMAIN_CERT_DIR/privkey.pem" \
+    -out "$DOMAIN_CERT_DIR/fullchain.pem" -subj "/CN=$DOMAIN" -addext "subjectAltName=DNS:$DOMAIN" -days 30 2>/dev/null
+  chmod 600 "$DOMAIN_CERT_DIR/privkey.pem"
+  warn "Сервер поднимается с временным сертификатом для $DOMAIN: по домену заглушка откроется с предупреждением, клиентов это не заденет."
+  echo "   Когда причина устранена, выпустите настоящий сертификат:"
+  echo "   $acme --issue -d $DOMAIN --standalone --server letsencrypt --keylength ec-256 && $acme --install-cert -d $DOMAIN --ecc --fullchain-file $DOMAIN_CERT_DIR/fullchain.pem --key-file $DOMAIN_CERT_DIR/privkey.pem --reloadcmd 'systemctl reload nginx'"
 }
 
 # Куда REALITY отправляет чужих гостей: для своего домена – на nginx этого сервера.
@@ -318,9 +335,9 @@ main() {
 
   # Маскировка: из флагов, по вопросу пользователю или стандартная.
   if [[ -n $DOMAIN ]]; then
-    [[ $TRUSTED == yes ]] || die "Свой домен требует доверенного сертификата панели: освободите порт 80 или добавьте --cert и --key."
+    [[ $PANEL_SSL == ip ]] || die "Свой домен работает с сертификатом панели Let's Encrypt на IP: освободите порт 80 и не указывайте --cert, --key и --panel-ssl none (сертификат для домена установщик получит сам)."
     domain_points_here "$DOMAIN" || die "Исправьте A-запись домена и запустите скрипт снова (DNS обновляется от нескольких минут до нескольких часов)."
-  elif [[ -z $SNI && $yes == no && $TRUSTED == yes && $multi == no && ! -f $XUI_ENV && -t 1 ]] && { : </dev/tty; } 2>/dev/null; then
+  elif [[ -z $SNI && $yes == no && $PANEL_SSL == ip && $multi == no && ! -f $XUI_ENV && -t 1 ]] && { : </dev/tty; } 2>/dev/null; then
     choose_masking
   fi
   if [[ -n $DOMAIN ]]; then
@@ -397,7 +414,7 @@ main() {
   fi
   if [[ -n $DOMAIN ]]; then
     [[ $SINGLE == yes ]] || die "Свой домен работает только в режиме «всё на 443», а эта установка уже работает с отдельными портами."
-    issue_domain_cert
+    issue_domain_cert || die "Без сертификата для $DOMAIN продолжать нельзя. Исправьте причину и запустите скрипт снова."
     OPEN+=("80/tcp")
   fi
   local p
@@ -963,6 +980,11 @@ setup_nginx() {
   reality_sni=$(jq -r '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   xhttp_sni=$(jq -r '.[] | select(.remark == "XHTTP" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   mt_sni=$(jq -r '.[] | select(.protocol == "mtproto" and .listen == "127.0.0.1") | (.settings | if type == "string" then fromjson else . end).fakeTlsDomain' <<<"$list")
+  # Домен и сертификат проверяем до записи конфигов: nginx не должен остаться с маршрутом в никуда.
+  if [[ -n $steal_domain ]]; then
+    [[ $steal_domain =~ ^[A-Za-z0-9.-]+$ ]] || die "В подключении REALITY странное имя домена – не трогаю nginx."
+    [[ -s $DOMAIN_CERT_DIR/fullchain.pem && -s $DOMAIN_CERT_DIR/privkey.pem ]] || die "Нет сертификата для $steal_domain ($DOMAIN_CERT_DIR) – не трогаю nginx."
+  fi
   # Всё из базы панели попадает в конфиг nginx, поэтому чужая база (например, из копии)
   # не должна протащить туда лишние директивы: имена и пути проверяем строго.
   local n
@@ -1057,8 +1079,6 @@ $locs
 }
 NGX
   if [[ -n $steal_domain ]]; then
-    [[ $steal_domain =~ ^[A-Za-z0-9.-]+$ ]] || die "В подключении REALITY странное имя домена – не трогаю nginx."
-    [[ -s $DOMAIN_CERT_DIR/fullchain.pem && -s $DOMAIN_CERT_DIR/privkey.pem ]] || die "Нет сертификата для $steal_domain ($DOMAIN_CERT_DIR)."
     cat >>/etc/nginx/conf.d/kit.conf <<NGX
 
 # Свой домен (self-steal): сюда REALITY отправляет всех, кто не подключается как клиент.
@@ -1304,7 +1324,7 @@ PY
   python3 -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'; c.execute('SELECT count(*) FROM inbounds')" \
     "$tmp/etc/x-ui/x-ui.db" 2>/dev/null || die "База панели в копии повреждена. Ничего не менял."
 
-  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION="" BACKUP_DOMAIN=""
+  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION=""
   # shellcheck disable=SC1090
   . "$tmp/kit-backup.env"
   [[ $BACKUP_SSL =~ ^(ip|custom|none)$ ]] || die "В копии нет данных о сертификате."
@@ -1317,13 +1337,25 @@ PY
   else
     HOST=$BACKUP_HOST
   fi
-  [[ $PANEL_SSL == ip || -n $BACKUP_DOMAIN ]] && port_busy 80 tcp && die "Для сертификата нужен свободный порт 80/tcp."
-  # Свой домен: сертификат в копию не кладём, на новом сервере он выпускается заново,
-  # а для этого домен уже должен вести на новый IP.
-  if [[ -n $BACKUP_DOMAIN ]]; then
-    [[ $BACKUP_DOMAIN =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]] || die "В копии странное имя домена – не восстанавливаю."
-    domain_points_here "$BACKUP_DOMAIN" || die "Сервер в копии маскируется под домен $BACKUP_DOMAIN. Сначала направьте его A-запись на этот сервер, потом запустите восстановление снова. Ничего не менял."
-    DOMAIN=$BACKUP_DOMAIN
+  # Свой домен (self-steal): берём из подключения REALITY в базе. Сертификат в копию не кладём,
+  # на новом сервере он выпускается заново, а для этого домен уже должен вести на новый IP.
+  DOMAIN=$(python3 - "$tmp/etc/x-ui/x-ui.db" 2>/dev/null <<'PY' || true
+import json, sqlite3, sys
+db = sqlite3.connect(sys.argv[1])
+for (s,) in db.execute("SELECT stream_settings FROM inbounds WHERE remark = 'REALITY'"):
+    try:
+        r = json.loads(s)["realitySettings"]
+    except Exception:
+        continue
+    if r.get("target") == "127.0.0.1:10447" and r.get("serverNames"):
+        print(r["serverNames"][0])
+        break
+PY
+)
+  [[ $PANEL_SSL == ip || -n $DOMAIN ]] && port_busy 80 tcp && die "Для сертификата нужен свободный порт 80/tcp."
+  if [[ -n $DOMAIN ]]; then
+    [[ $DOMAIN =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]] || die "В копии странное имя домена – не восстанавливаю."
+    domain_points_here "$DOMAIN" || die "Сервер в копии маскируется под домен $DOMAIN. Сначала направьте его A-запись на этот сервер, потом запустите восстановление снова. Ничего не менял."
   fi
   # Конфиги nginx и kit-sub из архива не берём, а собираем заново: из копии – только
   # проверенные значения (путь подписки, порты, режим).
@@ -1377,7 +1409,7 @@ PY
   fi
   # Всё на 443: nginx строит маршруты по подключениям из базы, заглушка – из копии.
   if [[ $SINGLE == yes ]]; then
-    [[ -n $DOMAIN ]] && issue_domain_cert
+    [[ -n $DOMAIN ]] && { issue_domain_cert || domain_cert_fallback; }
     install -d -m 755 /var/www/kit
     [[ -f $tmp/var/www/kit/index.html ]] && install -m 644 "$tmp/var/www/kit/index.html" /var/www/kit/index.html
     setup_nginx
