@@ -12,6 +12,9 @@
 
 set -Eeuo pipefail
 
+# На свежем VPS в фоне идут автообновления системы и держат замок dpkg: ждём его, а не падаем.
+apt-get() { command apt-get -o DPkg::Lock::Timeout=300 "$@"; }
+
 XUI_VERSION="v3.8.5"
 # SHA256 установщика 3X-UI этой версии: тег могут передвинуть, а хеш – нет (проверено 2026-09-30).
 XUI_INSTALL_SHA256="4e3fe7fe00ef8e904ce6a0e9c36fd8a0c7179fe5e786f23e31801aee84c6347d"

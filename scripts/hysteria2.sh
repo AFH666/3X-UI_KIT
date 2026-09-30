@@ -10,6 +10,9 @@
 
 set -Eeuo pipefail
 
+# На свежем VPS в фоне идут автообновления системы и держат замок dpkg: ждём его, а не падаем.
+apt-get() { command apt-get -o DPkg::Lock::Timeout=300 "$@"; }
+
 HY_VERSION="2.12.3"
 HY_REPO="HyNetworks/hysteria"
 # SHA256 бинарников этой версии, записанные в сам скрипт: проверка не зависит от файла
