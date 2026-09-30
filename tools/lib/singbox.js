@@ -32,7 +32,7 @@
     throw new Error('sing-box не поддерживает транспорт ' + t.network);
   }
 
-  // Возвращает { outbound } или { endpoint } (WireGuard в sing-box — endpoint).
+  // Возвращает { outbound } или { endpoint } (WireGuard в sing-box – endpoint).
   function convert(p) {
     const base = { tag: p.name, server: p.server, server_port: p.port };
     switch (p.type) {
@@ -45,7 +45,7 @@
       case 'ss':
         return { outbound: Object.assign(base, { type: 'shadowsocks', method: p.method, password: p.password }) };
       case 'hysteria2': {
-        // sing-box не умеет закреплять отпечаток сертификата — при pinSHA256 проверку отключаем.
+        // sing-box не умеет закреплять отпечаток сертификата – при pinSHA256 проверку отключаем.
         const t = clean({ enabled: true, server_name: p.sni, alpn: p.alpn, insecure: (p.insecure || !!p.pinSHA256) || undefined });
         const o = clean(Object.assign(base, { type: 'hysteria2', password: p.password, tls: t }));
         if (p.obfs) o.obfs = { type: p.obfs, password: p.obfsPassword };
@@ -65,7 +65,7 @@
     }
   }
 
-  // opts: { inbound: {type:'mixed', port} } — для тестов и десктопных клиентов.
+  // opts: { inbound: {type:'mixed', port} } – для тестов и десктопных клиентов.
   function build(proxies, opts) {
     opts = opts || {};
     const outbounds = [], endpoints = [], skipped = [];

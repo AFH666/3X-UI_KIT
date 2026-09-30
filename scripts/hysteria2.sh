@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hysteria2 одной командой — https://github.com/itsnotkubrick/3X-UI_KIT
+# Hysteria2 одной командой – https://github.com/itsnotkubrick/3X-UI_KIT
 #
 # Установка:   bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/hysteria2.sh)
 # Управление:  hy2 help
@@ -43,11 +43,11 @@ say()  { printf '%s\n' "${G}==>${N} $*"; }
 warn() { printf '%s\n' "${Y}!${N}  $*" >&2; }
 die()  { printf '%s\n' "${R}✗${N}  $*" >&2; exit 1; }
 
-trap 'die "Ошибка в строке $LINENO. Если это установка — исправьте причину и запустите скрипт ещё раз."' ERR
+trap 'die "Ошибка в строке $LINENO. Если это установка – исправьте причину и запустите скрипт ещё раз."' ERR
 
 need_root() { [[ $EUID -eq 0 ]] || die "Запустите от root: sudo -i, затем команду ещё раз."; }
 
-# Прежнее имя файла настроек — переносим, чтобы старые установки не сломались.
+# Прежнее имя файла настроек – переносим, чтобы старые установки не сломались.
 if [[ -f $CONF_DIR/pinkman.env && ! -f $STATE && -w $CONF_DIR ]]; then
   mv "$CONF_DIR/pinkman.env" "$STATE"
 fi
@@ -105,7 +105,7 @@ install_binary() {
   curl -fsSL --retry 3 -o "$tmp/hysteria" "$url/hysteria-linux-$arch"
   expected=${HY_SHA256[$arch]:-}
   actual=$(sha256sum "$tmp/hysteria" | awk '{print $1}')
-  [[ -n $expected && $expected == "$actual" ]] || { rm -rf "$tmp"; die "Контрольная сумма не совпала — файл повреждён или подменён."; }
+  [[ -n $expected && $expected == "$actual" ]] || { rm -rf "$tmp"; die "Контрольная сумма не совпала – файл повреждён или подменён."; }
   install -m 755 "$tmp/hysteria" "$BIN"
   rm -rf "$tmp"
   say "Контрольная сумма совпала: ${D}${actual:0:16}…${N}"
@@ -146,7 +146,7 @@ render_config() {
   local u p
   . "$STATE"
   {
-    echo "# Сгенерировано hy2 — правьте через команду hy2, ручные изменения перезапишутся."
+    echo "# Сгенерировано hy2 – правьте через команду hy2, ручные изменения перезапишутся."
     echo "listen: :$PORT"
     echo
     if [[ -n ${DOMAIN:-} ]]; then
@@ -212,9 +212,9 @@ EOF
 }
 
 tune_sysctl() {
-  # Буферы UDP побольше — рекомендация разработчиков Hysteria для скорости.
+  # Буферы UDP побольше – рекомендация разработчиков Hysteria для скорости.
   printf 'net.core.rmem_max=16777216\nnet.core.wmem_max=16777216\n' >"$SYSCTL"
-  sysctl -q -p "$SYSCTL" 2>/dev/null || warn "Не удалось применить sysctl (так бывает в контейнерах) — на работу не влияет."
+  sysctl -q -p "$SYSCTL" 2>/dev/null || warn "Не удалось применить sysctl (так бывает в контейнерах) – на работу не влияет."
 }
 
 setup_ufw() {
@@ -230,7 +230,7 @@ setup_ufw() {
     ufw allow 80/tcp >/dev/null
     ufw allow "$PORT/tcp" >/dev/null
   fi
-  ufw --force enable >/dev/null || warn "ufw не включился (так бывает в контейнерах) — откройте порты у хостера вручную."
+  ufw --force enable >/dev/null || warn "ufw не включился (так бывает в контейнерах) – откройте порты у хостера вручную."
 }
 
 # Ждём строку «server up and running» в логе с момента запуска: с доменом
@@ -250,7 +250,7 @@ start_and_wait() {
       if grep -qi 'acme\|certificate' <<<"$log"; then
         die "Не удалось получить сертификат. Проверьте, что A-запись домена указывает на этот сервер, а порт 80/tcp открыт у хостера. Потом: hy2 restart"
       fi
-      die "Hysteria не запустилась — причина выше. После исправления: hy2 restart"
+      die "Hysteria не запустилась – причина выше. После исправления: hy2 restart"
     fi
     sleep 1
   done
@@ -281,11 +281,11 @@ cmd_install() {
     echo
     echo "${B}Установка Hysteria2${N}"
     echo "С доменом сертификат выпустит Let's Encrypt, а по адресу домена откроется сайт-заглушка."
-    echo "Без домена будет самоподписанный сертификат — это тоже работает."
-    read -rp "Домен (Enter — без домена): " DOMAIN
+    echo "Без домена будет самоподписанный сертификат – это тоже работает."
+    read -rp "Домен (Enter – без домена): " DOMAIN
     if [[ -n $DOMAIN ]]; then read -rp "Почта для Let's Encrypt: " EMAIL; fi
   fi
-  # Значения попадают в install.env и конфиг Hysteria — пропускаем только допустимые символы.
+  # Значения попадают в install.env и конфиг Hysteria – пропускаем только допустимые символы.
   local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   if [[ -n $DOMAIN ]]; then
     [[ $DOMAIN =~ $re_host ]] || die "Похоже, это не домен: $DOMAIN"
@@ -298,8 +298,8 @@ cmd_install() {
 
   port_busy "$PORT" udp && die "UDP-порт $PORT уже занят. Выберите другой: --port 8443"
   if [[ -n $DOMAIN ]]; then
-    port_busy 80 tcp && die "TCP-порт 80 занят — он нужен Let's Encrypt для проверки домена."
-    port_busy "$PORT" tcp && die "TCP-порт $PORT занят — на нём будет сайт-заглушка."
+    port_busy 80 tcp && die "TCP-порт 80 занят – он нужен Let's Encrypt для проверки домена."
+    port_busy "$PORT" tcp && die "TCP-порт $PORT занят – на нём будет сайт-заглушка."
   fi
 
   install_packages
@@ -310,7 +310,7 @@ cmd_install() {
     resolved=$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk 'NR==1{print $1}') || true
     [[ -n $resolved ]] || die "Домен $DOMAIN не найден в DNS. Создайте A-запись на IP сервера и подождите пару минут."
     my_ip=$(public_ip)
-    [[ $resolved == "$my_ip" ]] || warn "Домен $DOMAIN указывает на $resolved, а IP сервера $my_ip. Если сертификат не выпустится — проверьте A-запись."
+    [[ $resolved == "$my_ip" ]] || warn "Домен $DOMAIN указывает на $resolved, а IP сервера $my_ip. Если сертификат не выпустится – проверьте A-запись."
   fi
   SNI=${SNI:-${DOMAIN:-www.bing.com}}
 
@@ -371,7 +371,7 @@ show_link() {
   local link
   link=$(user_link "$1")
   echo
-  echo "Ссылка для ${B}$1${N} — вставьте в Hiddify, v2rayN, Streisand или NekoBox:"
+  echo "Ссылка для ${B}$1${N} – вставьте в Hiddify, v2rayN, Streisand или NekoBox:"
   echo
   echo "$link"
   echo
@@ -406,7 +406,7 @@ cmd_del() {
   local u=${1:-}
   [[ -n $u ]] || die "Использование: hy2 del имя"
   awk -v u="$u" '$1==u {f=1} END {exit !f}' "$USERS" || die "Нет пользователя $u"
-  [[ $(grep -c . "$USERS") -gt 1 ]] || die "Это последний пользователь — сначала добавьте другого."
+  [[ $(grep -c . "$USERS") -gt 1 ]] || die "Это последний пользователь – сначала добавьте другого."
   awk -v u="$u" '$1!=u' "$USERS" >"$USERS.new" && mv "$USERS.new" "$USERS" && chmod 600 "$USERS"
   reload_service
   say "Пользователь $u удалён, его ссылка больше не работает."
@@ -434,19 +434,41 @@ cmd_status() {
   systemctl --no-pager --lines=5 status hysteria-server || true
 }
 
+# Открытый ключ, которым автор подписывает релизы (тот же, что в kit). Обновление ставится,
+# только если SHA256SUMS релиза подписан этим ключом и скрипт совпал с подписанным хешем.
+KIT_SIGNERS=(
+  # KIT_SIGNER_KEY
+)
+KIT_SIG_NS="3x-ui-kit-release"
+KIT_SIG_ID="releases@3x-ui-kit"
+
 cmd_update() {
   require_installed
-  local tmp
-  local latest
+  local tmp latest raw sum k
   latest=$(curl -fsS -m 8 "$KIT_REPO_RAW/main/VERSION" | tr -d '[:space:]') || true
   [[ $latest =~ ^[0-9]+(\.[0-9]+)+$ ]] || die "Не удалось узнать последнюю версию: GitHub недоступен с сервера."
-  tmp=$(mktemp)
-  say "Скачиваю скрипт версии $latest"
-  curl -fsSL --retry 3 -o "$tmp" "$KIT_REPO_RAW/v$latest/scripts/hysteria2.sh"
-  bash -n "$tmp" || { rm -f "$tmp"; die "Скачанный скрипт повреждён – ничего не менял."; }
-  bash "$tmp" __update_binary
-  install -m 755 "$tmp" "$CLI"
-  rm -f "$tmp"
+  [[ $latest != "$KIT_VERSION" && $(printf '%s\n%s\n' "$latest" "$KIT_VERSION" | sort -V | tail -1) == "$KIT_VERSION" ]] \
+    && die "На GitHub версия $latest старше вашей $KIT_VERSION – ничего не делаю."
+  ((${#KIT_SIGNERS[@]})) || die "В этой сборке нет ключа подписи – проверить обновление нечем."
+  command -v ssh-keygen >/dev/null || apt-get install -y -qq openssh-client >/dev/null
+  tmp=$(mktemp -d)
+  # shellcheck disable=SC2064 # путь подставляем сразу: при выходе локальной переменной уже нет
+  trap "rm -rf -- '$tmp'" EXIT
+  raw="$KIT_REPO_RAW/v$latest"
+  say "Скачиваю и проверяю подпись версии $latest"
+  curl -fsSL --retry 3 -o "$tmp/SHA256SUMS" "$raw/SHA256SUMS" && curl -fsSL --retry 3 -o "$tmp/SHA256SUMS.sig" "$raw/SHA256SUMS.sig" \
+    || die "Не удалось скачать подпись релиза – ничего не менял."
+  for k in "${KIT_SIGNERS[@]}"; do printf '%s namespaces="%s" %s\n' "$KIT_SIG_ID" "$KIT_SIG_NS" "$k" >>"$tmp/allowed_signers"; done
+  ssh-keygen -Y verify -f "$tmp/allowed_signers" -I "$KIT_SIG_ID" -n "$KIT_SIG_NS" -s "$tmp/SHA256SUMS.sig" <"$tmp/SHA256SUMS" >/dev/null 2>&1 \
+    || die "Подпись релиза $latest не сошлась с ключом автора – это не наш релиз. Ничего не менял."
+  grep -qx "# 3X-UI KIT $latest" "$tmp/SHA256SUMS" || die "Подписанный релиз не той версии – ничего не менял."
+  sum=$(awk '$2 == "scripts/hysteria2.sh" {print $1}' "$tmp/SHA256SUMS")
+  curl -fsSL --retry 3 -o "$tmp/hysteria2.sh" "$raw/scripts/hysteria2.sh" || die "Не удалось скачать скрипт – ничего не менял."
+  [[ $sum =~ ^[0-9a-f]{64}$ && $(sha256sum "$tmp/hysteria2.sh" | awk '{print $1}') == "$sum" ]] \
+    || die "Скрипт не совпал с подписанным SHA256 – ничего не менял."
+  bash -n "$tmp/hysteria2.sh" || die "Скачанный скрипт повреждён – ничего не менял."
+  bash "$tmp/hysteria2.sh" __update_binary
+  install -m 755 "$tmp/hysteria2.sh" "$CLI"
 }
 
 cmd_update_binary() {
@@ -485,7 +507,7 @@ cmd_uninstall() {
 
 cmd_help() {
   cat <<EOF
-${B}hy2${N} — управление Hysteria2
+${B}hy2${N} – управление Hysteria2
 
   hy2 add имя       добавить пользователя и показать его ссылку
   hy2 del имя       удалить пользователя

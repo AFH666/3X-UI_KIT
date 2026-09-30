@@ -1,5 +1,5 @@
 // Разбор ссылок vless:// vmess:// trojan:// ss:// hy2:// в общий формат.
-// Работает в браузере (window.PM) и в Node (module.exports). Всё локально —
+// Работает в браузере (window.PM) и в Node (module.exports). Всё локально –
 // ссылки никуда не отправляются.
 (function (root) {
   'use strict';
@@ -78,7 +78,7 @@
       s.fp = q.get('fp') || (security === 'reality' ? 'chrome' : '');
       s.alpn = splitList(q.get('alpn'));
       s.insecure = truthy(q.get('allowInsecure')) || truthy(q.get('insecure'));
-      // Отпечаток сертификата: pcs — имя параметра в ссылках Xray 26, pinSHA256 — в ссылках Hysteria.
+      // Отпечаток сертификата: pcs – имя параметра в ссылках Xray 26, pinSHA256 – в ссылках Hysteria.
       s.pin = (q.get('pcs') || q.get('pinSHA256') || '').replace(/:/g, '').toLowerCase();
     }
     if (security === 'reality') {
@@ -228,7 +228,7 @@
     }, hp);
   }
 
-  // Конфиг wg-quick / AmneziaWG: [Interface] + [Peer]. Параметры Jc…H4 — обфускация AmneziaWG.
+  // Конфиг wg-quick / AmneziaWG: [Interface] + [Peer]. Параметры Jc…H4 – обфускация AmneziaWG.
   function parseWgConf(text, name) {
     const sec = {};
     let cur = null;
@@ -261,7 +261,7 @@
   function parseVpn(link) {
     let text;
     try { text = b64decode(link.slice('vpn://'.length).split('#')[0]); } catch (e) { throw new Error('ссылка vpn:// повреждена'); }
-    if (!/\[Interface\]/.test(text)) throw new Error('формат vpn:// не поддерживается — нужен конфиг AmneziaWG');
+    if (!/\[Interface\]/.test(text)) throw new Error('формат vpn:// не поддерживается – нужен конфиг AmneziaWG');
     return parseWgConf(text, dec(link.split('#')[1] || ''));
   }
 
@@ -292,7 +292,7 @@
   function parseText(text) {
     let t = (text || '').trim();
     if (t && !/:\/\//.test(t) && looksBase64(t)) {
-      try { t = b64decode(t); } catch (e) { /* не base64 — разберём как есть */ }
+      try { t = b64decode(t); } catch (e) { /* не base64 – разберём как есть */ }
     }
     const ok = [];
     const errors = [];
@@ -303,7 +303,7 @@
         errors.push({ line: i + 1, text: line.length > 60 ? line.slice(0, 57) + '…' : line, error: e.message });
       }
     });
-    // Уникальные имена — клиенты требуют.
+    // Уникальные имена – клиенты требуют.
     const seen = {};
     ok.forEach((p) => {
       const base = p.name;

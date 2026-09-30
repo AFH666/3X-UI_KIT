@@ -14,10 +14,18 @@
 
 ---
 
+> [!TIP]
+> **Вышла версия 1.1:** исправления по аудиту безопасности, автообновление только подписанных
+> релизов, резервная копия и переезд. [Что нового](CHANGELOG.md) · сервер на 1.0 обновляется
+> одной командой:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
+> ```
+
 **3X-UI KIT** превращает чистый VPS в готовый VPN-сервер за несколько минут. Скрипт ставит
 официальную панель [3X-UI](https://github.com/MHSanaei/3x-ui), настраивает все популярные
 протоколы, сертификат и файрвол и выдаёт одну ссылку-подписку. Её можно вставить в любое
-приложение — оно само получит подходящие ему протоколы. Домен не нужен.
+приложение – оно само получит подходящие ему протоколы. Домен не нужен.
 
 <div align="center">
 <img alt="Конец установки 3X-UI KIT" src="manuals/assets/script-3x-ui.svg" width="760">
@@ -25,23 +33,25 @@
 
 ## Возможности
 
-- 🧩 **11 протоколов сразу** — VLESS REALITY, XHTTP, WebSocket, Trojan gRPC, VMess,
+- 🧩 **11 протоколов сразу** – VLESS REALITY, XHTTP, WebSocket, Trojan gRPC, VMess,
   Shadowsocks 2022, Hysteria2, TUIC, AmneziaWG (классика и 3.1) и MTProto для Telegram.
-- 🚪 **Всё TCP — через порт 443.** Панель, подписка и протоколы спрятаны за одним портом,
+- 🚪 **Всё TCP – через порт 443.** Панель, подписка и протоколы спрятаны за одним портом,
   а на случайный заход сервер показывает обычный сайт.
 - 🔗 **Одна подписка на все приложения.** Hiddify, Happ, v2rayN, Karing, Clash Verge и FlClash
   получают свой формат и только те протоколы, которые умеют.
-- 👥 **Дополнительные пользователи одной командой** — `kit user add` добавляет пользователя
+- 👥 **Дополнительные пользователи одной командой** – `kit user add` добавляет пользователя
   сразу во все протоколы с общим лимитом трафика, сроком и числом устройств.
+- 🔄 **Обновляется сам, но только подписанными релизами**, а `kit backup` переносит сервер
+  на новый VPS вместе с пользователями и ключами.
 - 🔒 **Сертификат Let's Encrypt на IP** выпускается и продлевается сам, панель скрыта на
   случайном пути со случайными логином и паролем.
-- ✅ **Проверено настоящими клиентами** — каждый протокол на ядрах Xray, Mihomo и sing-box,
+- ✅ **Проверено настоящими клиентами** – каждый протокол на ядрах Xray, Mihomo и sing-box,
   в том числе с сервером в России: [tests/matrix](tests/matrix/).
 
 ## Что понадобится
 
 - VPS с **Ubuntu 22.04/24.04** или **Debian 12/13** и доступом root по SSH
-- Свободные порты **443** и **80** — на свежем сервере они свободны
+- Свободные порты **443** и **80** – на свежем сервере они свободны
 
 ## Установка
 
@@ -56,15 +66,31 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 <details>
 <summary>🔍 Хотите сначала посмотреть скрипт? Установка с проверкой</summary>
 
-Скачайте скрипт конкретной версии, прочитайте его и сверьте SHA256 с тем, что указан
-на странице [релиза](https://github.com/itsnotkubrick/3X-UI_KIT/releases/latest):
+Скачайте скрипт конкретной версии, прочитайте его и сверьте SHA256 с файлом `SHA256SUMS`
+из того же релиза. Этот файл подписан ключом автора, подпись тоже можно проверить:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/scripts/3x-ui.sh
+v=1.1; raw=https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$v
+curl -fsSLO $raw/scripts/3x-ui.sh -O $raw/SHA256SUMS -O $raw/SHA256SUMS.sig
 less 3x-ui.sh
-sha256sum 3x-ui.sh
+grep 3x-ui.sh SHA256SUMS && sha256sum 3x-ui.sh
 bash 3x-ui.sh
 ```
+
+<details>
+<summary>Проверка подписи</summary>
+
+Открытый ключ автора записан в [`scripts/kit.sh`](scripts/kit.sh) (`KIT_SIGNERS`). Сохраните его
+строку в файл `allowed_signers` в виде `releases@3x-ui-kit namespaces="3x-ui-kit-release" ssh-ed25519 AAAA…`
+и выполните:
+
+```bash
+ssh-keygen -Y verify -f allowed_signers -I releases@3x-ui-kit -n 3x-ui-kit-release -s SHA256SUMS.sig < SHA256SUMS
+```
+
+«Good signature» – файл подписан автором. Так же каждую ночь проверяет обновления ваш сервер.
+
+</details>
 
 Скрипт версии 1.1 скачивает свои части (`kit`, `kit-sub`) из того же релиза, а установщик
 3X-UI сверяет по SHA256 и не запускает, если он изменился. Первый раз удобнее ставить на
@@ -72,8 +98,8 @@ bash 3x-ui.sh
 
 </details>
 
-Подробно — подключение приложений, дополнительные пользователи и параметры —
-в **[инструкции](manuals/3x-ui.md)**. Нужен только Hysteria2 — есть
+Подробно – подключение приложений, дополнительные пользователи и параметры –
+в **[инструкции](manuals/3x-ui.md)**. Нужен только Hysteria2 – есть
 [отдельный скрипт](manuals/hysteria2.md).
 
 > [!WARNING]
@@ -82,10 +108,10 @@ bash 3x-ui.sh
 
 ## Генераторы конфигов для XKeen
 
-Вставьте ссылку на сервер или подписку, отметьте нужные сервисы — и получите
+Вставьте ссылку на сервер или подписку, отметьте нужные сервисы – и получите
 готовый конфиг и одну команду, которая сама положит его на роутер.
 Всё считается в браузере, ссылки никуда не отправляются.
-Как поставить XKeen на роутер — в [инструкции для Keenetic](manuals/xkeen-keenetic.md).
+Как поставить XKeen на роутер – в [инструкции для Keenetic](manuals/xkeen-keenetic.md).
 
 | | Генератор | Что получится |
 |---|---|---|
@@ -94,13 +120,13 @@ bash 3x-ui.sh
 
 ## Полезное
 
-- [XKeen](https://github.com/jameszeroX/XKeen) и его [вики](https://github.com/jameszeroX/XKeen/wiki) — документация по маршрутизации на Keenetic
-- [XKeen UI](https://github.com/zxc-rv/XKeen-UI) — веб-интерфейс для XKeen
-- [IP-адреса для AmneziaWG](https://github.com/RockBlack-VPN/ip-address) — актуальные списки от RockBlack
+- [XKeen](https://github.com/jameszeroX/XKeen) и его [вики](https://github.com/jameszeroX/XKeen/wiki) – документация по маршрутизации на Keenetic
+- [XKeen UI](https://github.com/zxc-rv/XKeen-UI) – веб-интерфейс для XKeen
+- [IP-адреса для AmneziaWG](https://github.com/RockBlack-VPN/ip-address) – актуальные списки от RockBlack
 
 ## Поддержать проект
 
-Скрипты и инструкции бесплатные. Донат добровольный — он помогает оплачивать
+Скрипты и инструкции бесплатные. Донат добровольный – он помогает оплачивать
 тестовые серверы и держать скрипты в актуальном состоянии. Спасибо! 💜
 
 | Способ | |

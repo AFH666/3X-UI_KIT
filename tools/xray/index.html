@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Генератор Xray для XKeen</title>
-<meta name="description" content="Готовые 04_outbounds.json и 05_routing.json для XKeen из ссылки vless://, vmess://, trojan://, ss:// — прямо в браузере">
+<meta name="description" content="Готовые 04_outbounds.json и 05_routing.json для XKeen из ссылки vless://, vmess://, trojan://, ss:// – прямо в браузере">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕶️</text></svg>">
 <link rel="stylesheet" href="../lib/ui.css">
 </head>
@@ -16,30 +16,30 @@
 
 <main>
   <h1>Конфиг Xray для XKeen</h1>
-  <p class="lead">Вставьте ссылку на свой сервер — получите готовые <code>04_outbounds.json</code> и <code>05_routing.json</code>
+  <p class="lead">Вставьте ссылку на свой сервер – получите готовые <code>04_outbounds.json</code> и <code>05_routing.json</code>
     и одну команду, которая сама положит их на роутер.</p>
-  <div class="privacy">🔒 <span>Всё считается <b>в вашем браузере</b> — ссылки никуда не отправляются</span></div>
+  <div class="privacy">🔒 <span>Всё считается <b>в вашем браузере</b> – ссылки никуда не отправляются</span></div>
 
   <section class="step">
     <h2><span class="num">1</span>Ссылки на серверы</h2>
     <textarea id="links" class="mono" spellcheck="false" placeholder="vless://…&#10;По одной на строку. Можно вставить подписку в base64 целиком."></textarea>
     <div class="parsed" id="parsed"></div>
     <p class="hint">Поддерживаются vless (REALITY, TLS, ws, gRPC, xhttp, httpupgrade), vmess, trojan, shadowsocks, Hysteria2 и WireGuard.
-      Несколько серверов — Xray сам выберет самый быстрый. TUIC и AmneziaWG работают через <a href="../mihomo/">Mihomo</a>.</p>
+      Несколько серверов – Xray сам выберет самый быстрый. TUIC и AmneziaWG работают через <a href="../mihomo/">Mihomo</a>.</p>
   </section>
 
   <section class="step">
     <h2><span class="num">2</span>Что пускать через прокси</h2>
     <div class="sub">Геобазы на роутере</div>
     <div class="grid" id="bases"></div>
-    <p class="hint">Какие базы вы выбрали при установке XKeen. Не уверены — оставьте ZKeen: её XKeen ставит по умолчанию.</p>
+    <p class="hint">Какие базы вы выбрали при установке XKeen. Не уверены – оставьте ZKeen: её XKeen ставит по умолчанию.</p>
     <div class="sub">Сервисы</div>
     <div class="grid" id="services"></div>
     <div class="sub">Дополнительно</div>
     <div class="grid">
       <label class="opt"><input type="checkbox" id="blockQuic" checked><span>Блокировать QUIC<small>видео через прокси грузится стабильнее</small></span></label>
       <label class="opt" id="adsOpt"><input type="checkbox" id="blockAds"><span>Блокировать рекламу<small>нужна база V2Fly</small></span></label>
-      <label class="opt"><input type="checkbox" id="finalProxy"><span>Всё остальное — тоже через прокси<small>иначе остальное идёт напрямую</small></span></label>
+      <label class="opt"><input type="checkbox" id="finalProxy"><span>Всё остальное – тоже через прокси<small>иначе остальное идёт напрямую</small></span></label>
     </div>
     <div class="two">
       <div><label class="field" for="proxyDomains">Свои сайты через прокси</label>
@@ -49,12 +49,12 @@
     </div>
     <label class="field" for="tag">Тег основного сервера</label>
     <input type="text" id="tag" value="vless-reality" spellcheck="false">
-    <p class="hint">XKeen по умолчанию ожидает <code>vless-reality</code> — менять стоит, только если вы правили правила вручную.</p>
+    <p class="hint">XKeen по умолчанию ожидает <code>vless-reality</code> – менять стоит, только если вы правили правила вручную.</p>
   </section>
 
   <section class="step">
     <h2><span class="num">3</span>Готовый конфиг</h2>
-    <div id="result"><div class="empty">Вставьте ссылку в шаг 1 — здесь появятся файлы.</div></div>
+    <div id="result"><div class="empty">Вставьте ссылку в шаг 1 – здесь появятся файлы.</div></div>
   </section>
 </main>
 <footer><a href="https://github.com/itsnotkubrick/3X-UI_KIT/tree/main/tools">Исходный код на GitHub</a> · Проверено на Xray 26 и XKeen 2.0</footer>
@@ -93,7 +93,7 @@
       const el = document.querySelector('[data-svc="' + s.id + '"]');
       const ok = PM.xrayServiceAvailable(s, o.bases);
       const box = el.querySelector('input');
-      // Без нужной базы галочку снимаем, но помним выбор — вернём, когда база появится.
+      // Без нужной базы галочку снимаем, но помним выбор – вернём, когда база появится.
       if (!ok && !box.disabled) { box.dataset.want = box.checked ? '1' : ''; box.checked = false; }
       if (ok && box.disabled) box.checked = box.dataset.want === '1';
       el.classList.toggle('off', !ok);
@@ -132,7 +132,7 @@
     UI.renderParsed($('#parsed'), parsed, r ? r.skipped : []);
     if (!r) {
       files = null;
-      $('#result').innerHTML = err ? '<div class="msg err">' + esc(err) + '</div>' : '<div class="empty">Вставьте ссылку в шаг 1 — здесь появятся файлы.</div>';
+      $('#result').innerHTML = err ? '<div class="msg err">' + esc(err) + '</div>' : '<div class="empty">Вставьте ссылку в шаг 1 – здесь появятся файлы.</div>';
       return;
     }
     files = {};
@@ -143,8 +143,8 @@
         '<button data-tab="04_outbounds.json">04_outbounds.json</button><button data-tab="05_routing.json">05_routing.json</button></div>' +
         '<div class="out"><pre class="code" id="out"></pre></div>' +
         '<div class="actions"><button class="btn" id="cp">Скопировать</button><button class="btn ghost" id="dl">Скачать файл</button></div>' +
-        '<ol class="how" id="how"><li>Подключитесь к роутеру: <code>ssh root@192.168.1.1 -p 222</code></li>' +
-        '<li>Вставьте команду целиком и нажмите Enter — файлы запишутся, XKeen перезапустится.</li>' +
+        '<ol class="how" id="how"><li>Подключитесь к роутеру: <code>ssh root@192.168.x.x -p 222</code></li>' +
+        '<li>Вставьте команду целиком и нажмите Enter – файлы запишутся, XKeen перезапустится.</li>' +
         '<li>Готово. Проверить: <code>xkeen -status</code></li></ol><div id="note"></div>';
       UI.tabs($('#tabs'), (t) => { tab = t; show(); });
       $('#cp').onclick = (e) => UI.copy($('#out').textContent, e.target);
@@ -153,7 +153,7 @@
     show();
     const notes = [];
     if (r.count > 1) notes.push('Серверов: ' + r.count + '. Xray будет каждую минуту проверять их и выбирать самый быстрый.');
-    if (r.skipped.length) notes.push('Пропущено: ' + r.skipped.map((s) => s.name + ' — ' + s.error).join('; '));
+    if (r.skipped.length) notes.push('Пропущено: ' + r.skipped.map((s) => s.name + ' – ' + s.error).join('; '));
     (r.warnings || []).forEach((w) => notes.push(w));
     $('#note').innerHTML = notes.map((n) => '<div class="msg warn">' + esc(n) + '</div>').join('');
   }

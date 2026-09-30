@@ -7,7 +7,7 @@ const { proxies } = L.parseText(fs.readFileSync(linksFile, 'utf8'));
 fs.rmSync(out, { recursive: true, force: true });
 const rows = [];
 proxies.filter((p) => p.type !== 'mtproto').forEach((p, i) => {
-  // Тестовый сервер с самоподписанным сертификатом — разрешаем клиентам его принять.
+  // Тестовый сервер с самоподписанным сертификатом – разрешаем клиентам его принять.
   if (PIN && p.tls && p.tls.security === "tls") { p.tls.insecure = true; p.tls.pin = PIN; }
   if (PIN && (p.type === "hysteria2" || p.type === "tuic")) p.insecure = true;
   if (PIN && p.type === "hysteria2") p.pinSHA256 = PIN;

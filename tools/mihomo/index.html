@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Генератор Mihomo для XKeen</title>
-<meta name="description" content="Готовый config.yaml Mihomo для XKeen из ссылок vless, hy2, trojan, ss или подписки — прямо в браузере">
+<meta name="description" content="Готовый config.yaml Mihomo для XKeen из ссылок vless, hy2, trojan, ss или подписки – прямо в браузере">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕶️</text></svg>">
 <link rel="stylesheet" href="../lib/ui.css">
 </head>
@@ -16,9 +16,9 @@
 
 <main>
   <h1>Конфиг Mihomo для XKeen</h1>
-  <p class="lead">Ссылки на серверы или подписка — и готовый <code>config.yaml</code> с правилами для нужных сервисов,
+  <p class="lead">Ссылки на серверы или подписка – и готовый <code>config.yaml</code> с правилами для нужных сервисов,
     автовыбором быстрого сервера и веб-панелью. Плюс команда, которая сама положит его на роутер.</p>
-  <div class="privacy">🔒 <span>Всё считается <b>в вашем браузере</b> — ссылки никуда не отправляются</span></div>
+  <div class="privacy">🔒 <span>Всё считается <b>в вашем браузере</b> – ссылки никуда не отправляются</span></div>
 
   <section class="step">
     <h2><span class="num">1</span>Серверы</h2>
@@ -36,10 +36,10 @@
     <div class="grid" id="services"></div>
     <div class="sub">Дополнительно</div>
     <div class="grid">
-      <label class="opt"><input type="checkbox" id="perService"><span>Свой выбор сервера для каждого сервиса<small>в панели можно пустить YouTube через один сервер, а Telegram — через другой</small></span></label>
+      <label class="opt"><input type="checkbox" id="perService"><span>Свой выбор сервера для каждого сервиса<small>в панели можно пустить YouTube через один сервер, а Telegram – через другой</small></span></label>
       <label class="opt"><input type="checkbox" id="blockQuic" checked><span>Блокировать QUIC<small>видео через прокси грузится стабильнее</small></span></label>
       <label class="opt"><input type="checkbox" id="blockAds"><span>Блокировать рекламу</span></label>
-      <label class="opt"><input type="checkbox" id="finalProxy"><span>Всё остальное — тоже через прокси<small>иначе остальное идёт напрямую</small></span></label>
+      <label class="opt"><input type="checkbox" id="finalProxy"><span>Всё остальное – тоже через прокси<small>иначе остальное идёт напрямую</small></span></label>
     </div>
     <div class="two">
       <div><label class="field" for="proxyDomains">Свои сайты через прокси</label>
@@ -51,7 +51,7 @@
 
   <section class="step">
     <h2><span class="num">3</span>Готовый конфиг</h2>
-    <div id="result"><div class="empty">Добавьте ссылку или подписку в шаг 1 — здесь появится конфиг.</div></div>
+    <div id="result"><div class="empty">Добавьте ссылку или подписку в шаг 1 – здесь появится конфиг.</div></div>
   </section>
 </main>
 <footer><a href="https://github.com/itsnotkubrick/3X-UI_KIT/tree/main/tools">Исходный код на GitHub</a> · Проверено на Mihomo 1.19 и XKeen 2.0</footer>
@@ -101,7 +101,7 @@
     if ($('#sub').value.trim() && !o.subscription) err = 'Подписка должна начинаться с http:// или https://';
     if (!r) {
       yaml = '';
-      $('#result').innerHTML = err ? '<div class="msg err">' + esc(err) + '</div>' : '<div class="empty">Добавьте ссылку или подписку в шаг 1 — здесь появится конфиг.</div>';
+      $('#result').innerHTML = err ? '<div class="msg err">' + esc(err) + '</div>' : '<div class="empty">Добавьте ссылку или подписку в шаг 1 – здесь появится конфиг.</div>';
       return;
     }
     yaml = r.yaml;
@@ -110,10 +110,10 @@
         '<div class="tabs" id="tabs"><button data-tab="cmd" class="on">Команда для роутера</button><button data-tab="yaml">config.yaml</button></div>' +
         '<div class="out"><pre class="code" id="out"></pre></div>' +
         '<div class="actions"><button class="btn" id="cp">Скопировать</button><button class="btn ghost" id="dl">Скачать config.yaml</button></div>' +
-        '<ol class="how"><li>Подключитесь к роутеру: <code>ssh root@192.168.1.1 -p 222</code></li>' +
+        '<ol class="how"><li>Подключитесь к роутеру: <code>ssh root@192.168.x.x -p 222</code></li>' +
         '<li>Если XKeen сейчас работает на Xray, сначала выполните <code>xkeen -mihomo</code></li>' +
-        '<li>Вставьте команду целиком и нажмите Enter — конфиг запишется, XKeen перезапустится.</li>' +
-        '<li>Панель управления: <code>http://192.168.1.1:9090/ui</code>, секрет: <code id="sec"></code></li></ol>';
+        '<li>Вставьте команду целиком и нажмите Enter – конфиг запишется, XKeen перезапустится.</li>' +
+        '<li>Панель управления: <code>http://192.168.x.x:9090/ui</code>, секрет: <code id="sec"></code></li></ol>';
       UI.tabs($('#tabs'), (t) => { tab = t; show(); });
       $('#cp').onclick = (e) => UI.copy($('#out').textContent, e.target);
       $('#dl').onclick = () => UI.download('config.yaml', yaml);

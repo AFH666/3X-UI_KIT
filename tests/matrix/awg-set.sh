@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# awg-set.sh classic|full — выставляет обфускацию AmneziaWG на подключении и печатает ссылку.
+# awg-set.sh classic|full – выставляет обфускацию AmneziaWG на подключении и печатает ссылку.
 . /etc/x-ui/install-result.env
 API="http://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"; H=(-H "Authorization: Bearer $XUI_API_TOKEN" -H 'Content-Type: application/json')
 ID=$(curl -fsS "${H[@]}" "$API/inbounds/list" | jq -r '.obj[] | select(.protocol=="amneziawg") | .id')

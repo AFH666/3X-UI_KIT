@@ -7,7 +7,7 @@
 
   // Сервисы: какие наборы правил отправлять через прокси.
   const SERVICES = [
-    { id: 'blocked', group: 'Заблокированное', label: 'Заблокированное в России', hint: 'список re:filter — основные заблокированные сайты', on: true,
+    { id: 'blocked', group: 'Заблокированное', label: 'Заблокированное в России', hint: 'список re:filter – основные заблокированные сайты', on: true,
       sets: [['refilter@domain', REFILTER + 'domain-rule.mrs', 'domain'], ['refilter@ipcidr', REFILTER + 'ip-rule.mrs', 'ipcidr']] },
     { id: 'youtube', label: 'YouTube', on: true, sets: [['youtube@domain', META + 'geosite/youtube.mrs', 'domain']] },
     { id: 'telegram', label: 'Telegram', on: true,
@@ -142,7 +142,7 @@
         o['pre-shared-key'] = p.preSharedKey || undefined; o.mtu = p.mtu;
         o.reserved = p.reserved || undefined;
         // Параметры AmneziaWG в именах Mihomo. Для 3.1 (есть ключ защиты заголовков)
-        // обязателен version: 3 — без него Mihomo не подключается к такому серверу.
+        // обязателен version: 3 – без него Mihomo не подключается к такому серверу.
         if (p.awg) {
           const names = { headerprotectionkey: 'header-protection-key', contentpaddingaddition: 'content-padding-addition',
             rekeyaftertime: 'rekey-after-time', rejectaftertime: 'reject-after-time', rekeytimeout: 'rekey-timeout',
@@ -194,7 +194,8 @@
       'external-controller': '0.0.0.0:9090',
       secret: opts.secret || randomSecret(),
       'external-ui': 'zashboard',
-      'external-ui-url': 'https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip',
+      // Версия панели закреплена: «latest» поставил бы на роутер то, что мы не проверяли.
+      'external-ui-url': 'https://github.com/Zephyruso/zashboard/releases/download/v3.29.1/dist.zip',
       sniffer: {
         enable: true,
         sniff: { HTTP: { __flow: 1, ports: [80, 8080] }, TLS: { __flow: 1, ports: [443, 8443] }, QUIC: { __flow: 1, ports: [443, 8443] } },
@@ -221,7 +222,7 @@
     const target = {};
     services.forEach((s) => {
       if (opts.perService) {
-        // В правилах запятая — разделитель, поэтому имя группы без запятых.
+        // В правилах запятая – разделитель, поэтому имя группы без запятых.
         const g = (s.group || s.label).replace(/,/g, '');
         groups.push({ name: g, type: 'select', proxies: [PROXY, 'DIRECT'], 'include-all': true });
         target[s.id] = g;
@@ -253,7 +254,7 @@
 
     const head = '# Сгенерировано: https://itsnotkubrick.github.io/3X-UI_KIT/tools/mihomo/\n' +
       '# Файл для XKeen: /opt/etc/mihomo/config.yaml, затем xkeen -restart\n' +
-      '# Панель управления: http://IP-роутера:9090/ui (секрет — поле secret ниже)\n';
+      '# Панель управления: http://IP-роутера:9090/ui (секрет – поле secret ниже)\n';
     return { yaml: head + yaml(cfg).replace(/^\n/, ''), config: cfg, count: proxies.length };
   }
 

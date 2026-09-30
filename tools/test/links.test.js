@@ -109,7 +109,7 @@ test('TUIC, WireGuard, AmneziaWG (vpn://) и MTProto', () => {
   assert.equal(parseLink('https://t.me/proxy?server=m.example.com&port=8445&secret=ee00').port, 8445);
 });
 
-test('Xray 26: вместо allowInsecure — отпечаток или предупреждение', () => {
+test('Xray 26: вместо allowInsecure – отпечаток или предупреждение', () => {
   const insecure = WS_TLS.replace('#', '&allowInsecure=1#');
   const r = buildXray(parseText(insecure).proxies, {});
   assert.ok(!JSON.stringify(r.files).includes('allowInsecure'));
@@ -119,7 +119,7 @@ test('Xray 26: вместо allowInsecure — отпечаток или пред
   assert.equal(pinned.warnings.length, 0);
 });
 
-test('Mihomo: AmneziaWG 3.1 — имена параметров Mihomo и version: 3', () => {
+test('Mihomo: AmneziaWG 3.1 – имена параметров Mihomo и version: 3', () => {
   const conf = '[Interface]\nPrivateKey = cHJpdg==\nAddress = 10.8.2.2/32\nJc = 3\nJmin = 49\nJmax = 139\nS1 = 141\nS2 = 92\nS3 = 22\nS4 = 18\nH1 = 5\nH2 = 6\nH3 = 7\nH4 = 8\nI1 = <r 89>\nHeaderProtectionKey = a2V5\nRekeyTimeout = 5-6\n[Peer]\nPublicKey = cHVi\nEndpoint = a.example.com:51822\n';
   const r = buildMihomo(parseText('vpn://' + Buffer.from(conf).toString('base64')).proxies, { secret: 'x' });
   const o = r.config.proxies[0]['amnezia-wg-option'];

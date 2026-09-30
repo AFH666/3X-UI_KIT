@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Прогон матрицы: каждый конфиг — отдельный клиент, через него открываем сайт.
+# Прогон матрицы: каждый конфиг – отдельный клиент, через него открываем сайт.
 cd /lab/cases
 t() { # client port cmd...
   local port=$1; shift
@@ -16,7 +16,7 @@ t() { # client port cmd...
 printf '%-32s %-40s %-40s %s\n' "протокол" "Xray 26.6.27" "Mihomo" "sing-box"
 for d in */; do
   d=${d%/}
-  x='—'; m='—'; s='—'
+  x='–'; m='–'; s='–'
   [[ -f $d/xray.json ]] && x=$(t 1080 /cl/xray run -c $d/xray.json)
   [[ -f $d/mihomo.yaml ]] && m=$(t 1081 /cl/mihomo -d /tmp/mh -f $d/mihomo.yaml)
   [[ -f $d/singbox.json ]] && s=$(t 1082 /cl/sing-box run -c $d/singbox.json)

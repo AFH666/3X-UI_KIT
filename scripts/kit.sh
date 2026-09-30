@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# kit — управление сервером 3X-UI KIT: пользователи и обновление.
+# kit – управление сервером 3X-UI KIT: пользователи, обновление, резервная копия.
 # https://github.com/itsnotkubrick/3X-UI_KIT
 #
 #   kit user add имя [--gb 50] [--days 30] [--devices 3]
 #   kit user list | link имя | limit имя [--gb N] [--days N] | off имя | on имя | del имя
-#   kit update | kit version
+#   kit update [--auto | --manual] | kit backup | kit version
 
 set -Eeuo pipefail
 export LC_ALL=C.UTF-8  # ширина колонок по символам, а не байтам
@@ -28,7 +28,7 @@ warn() { printf '%s\n' "${Y}!${N}  $*" >&2; }
 die()  { printf '%s\n' "${R}✗${N}  $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Запустите от root: sudo -i, затем команду ещё раз."
-[[ -f $XUI_ENV && -f $KIT_ENV ]] || die "Не найдена установка — сначала поставьте сервер скриптом 3x-ui.sh."
+[[ -f $XUI_ENV && -f $KIT_ENV ]] || die "Не найдена установка – сначала поставьте сервер скриптом 3x-ui.sh."
 # shellcheck disable=SC1090
 . "$XUI_ENV"; . "$KIT_ENV"
 
@@ -52,7 +52,7 @@ api() { # METHOD path [json]
 # В 3X-UI 3.x у клиента одна запись и в ней одна пара ключей WireGuard и один адрес. Если
 # клиент подключён к двум AmneziaWG, в подписку для обоих уходят ключ и адрес одного из них,
 # и второй сервер клиента не узнаёт (проверено 2026-09-27). Поэтому к первому AmneziaWG
-# подключаем основную запись, а ко второму — запись-«двойник» «имя-awg» с подпиской «<id>-awg»
+# подключаем основную запись, а ко второму – запись-«двойник» «имя-awg» с подпиской «<id>-awg»
 # (subId в 3X-UI обязан быть уникальным) и теми же лимитами; kit-sub подмешивает её в Clash.
 awg_ids() { api GET inbounds/list | jq -r '[.[] | select(.protocol == "amneziawg") | .id] | sort | .[]'; }
 non_awg_ids() { api GET inbounds/list | jq -c '[.[] | select(.protocol != "amneziawg") | .id]'; }
@@ -98,13 +98,13 @@ show_link() { # имя subId
   local url
   url=$(sub_url "$2")
   echo
-  echo "Подписка ${B}$1${N} — все протоколы одной ссылкой. Вставьте в Happ, Hiddify, Karing,"
+  echo "Подписка ${B}$1${N} – все протоколы одной ссылкой. Вставьте в Happ, Hiddify, Karing,"
   echo "v2rayN, Clash Verge или FlClash:"
   echo
   echo "$url"
   echo
   command -v qrencode >/dev/null && qrencode -t ANSIUTF8 -m 1 "$url"
-  echo "${D}AmneziaVPN и Telegram: kit user link $1 --all — отдельные ссылки vpn:// и tg://${N}"
+  echo "${D}AmneziaVPN и Telegram: kit user link $1 --all – отдельные ссылки vpn:// и tg://${N}"
 }
 
 cmd_add() {
@@ -167,13 +167,13 @@ cmd_list() {
       elif ((exp > 0 && exp < $(date +%s) * 1000)); then st="${Y}истёк${N}"
       elif ((total > 0 && used >= total)); then st="${Y}лимит${N}"
       else st="${G}активен${N}"; fi
-      if ((last > 0)); then seen=$(date -d "@$((last / 1000))" '+%d.%m %H:%M'); else seen="—"; fi
+      if ((last > 0)); then seen=$(date -d "@$((last / 1000))" '+%d.%m %H:%M'); else seen="–"; fi
       printf "%-18s %-22s %-14s %-19s %s\n" "$email" "$tr" "$till" "$st" "$seen"
     done
   }
 }
 
-# Меняет все записи пользователя (основную и «двойников» AmneziaWG), каждую — от её собственных данных.
+# Меняет все записи пользователя (основную и «двойников» AmneziaWG), каждую – от её собственных данных.
 update_user() { # имя jq-фильтр [аргументы jq...]
   local name=$1 filter=$2 e rec body
   shift 2
@@ -197,14 +197,14 @@ cmd_limit() {
     esac
   done
   update_user "$name" "$f" --argjson gb "${gb:-0}" --argjson days "${days:-0}" --argjson dev "${dev:-0}"
-  say "Лимиты $name обновлены (0 — без ограничений)."
+  say "Лимиты $name обновлены (0 – без ограничений)."
 }
 
 cmd_toggle() { # имя true|false
   valid_name "$1"
   [[ -n $(client "$1") ]] || die "Нет пользователя $1"
   update_user "$1" ".enable = \$v" --argjson v "$2"
-  if [[ $2 == true ]]; then say "Пользователь $1 включён."; else say "Пользователь $1 выключен — подписка и подключения не работают."; fi
+  if [[ $2 == true ]]; then say "Пользователь $1 включён."; else say "Пользователь $1 выключен – подписка и подключения не работают."; fi
 }
 
 cmd_del() {
@@ -222,12 +222,24 @@ cmd_del() {
 
 # ---------- версия и обновление ----------
 
+# Открытый ключ, которым автор подписывает релизы (ssh-keygen -Y sign). Закрытая часть
+# есть только у автора, поэтому подменить обновление, взломав один GitHub, не выйдет.
+# Новый ключ приходит только в релизе, подписанном старым.
+KIT_SIGNERS=(
+  # KIT_SIGNER_KEY
+)
+KIT_SIG_NS="3x-ui-kit-release"
+KIT_SIG_ID="releases@3x-ui-kit"
+KIT_MANUAL=/etc/kit/manual-update
+KIT_UPDATE_LOG=/var/log/kit-update.log
+
 xray_version() {
   local b
   for b in /usr/local/x-ui/bin/xray-linux-*; do [[ -x $b ]] && "$b" version 2>/dev/null | awk 'NR==1 {print "v" $2}'; return; done
 }
 remote_version() { curl -fsS -m "${1:-5}" "$KIT_RAW/VERSION" 2>/dev/null | tr -d '[:space:]'; }
 newer() { [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1) == "$1" ]]; }  # $1 новее $2?
+auto_enabled() { systemctl is-enabled -q kit-update.timer 2>/dev/null; }
 
 # Раз в сутки узнаём последнюю версию (не дольше 3 секунд) и подсказываем обновиться.
 update_hint() {
@@ -239,13 +251,19 @@ update_hint() {
   latest=$(cat "$KIT_LATEST" 2>/dev/null || true)
   if [[ -n $latest ]] && newer "$latest" "$KIT_VERSION"; then
     echo
-    echo "${Y}↑ Доступна версия $latest${N} (у вас $KIT_VERSION). Обновить: ${B}kit update${N}"
+    if auto_enabled; then
+      echo "${Y}↑ Вышла версия $latest${N} (у вас $KIT_VERSION). Встанет сама этой ночью или сейчас: ${B}kit update${N}"
+    else
+      echo "${Y}↑ Доступна версия $latest${N} (у вас $KIT_VERSION). Обновить: ${B}kit update${N}"
+    fi
   fi
 }
 
 cmd_version() {
   echo "3X-UI KIT $KIT_VERSION"
   echo "${D}панель 3X-UI $(/usr/local/x-ui/x-ui -v 2>/dev/null | head -1 || echo '?'), ядро Xray $(xray_version)${N}"
+  if auto_enabled; then echo "${D}автообновление: включено (только подписанные релизы), журнал $KIT_UPDATE_LOG${N}"
+  else echo "${D}автообновление: выключено, включить: kit update --auto${N}"; fi
   update_hint
 }
 
@@ -253,6 +271,31 @@ cmd_version() {
 changelog_of() {
   curl -fsS -m 5 "$KIT_RAW/CHANGELOG.md" 2>/dev/null | awk -v v="## v$1" '
     index($0, v) == 1 { on = 1; t = substr($0, length(v) + 1); sub(/^[: ]+/, "", t); if (t != "") print t; next } on && /^## / { exit } on' | sed 's/\*\*//g; s/`//g' | grep -v '^[[:space:]]*$' | head -40 || true
+}
+
+# Скачивает релиз $1 в каталог $2 и проверяет: подпись SHA256SUMS нашим ключом, версию
+# внутри подписанного файла и SHA256 каждого файла. Любое несовпадение – отказ.
+fetch_release() { # версия каталог
+  local v=$1 d=$2 raw f sum k
+  ((${#KIT_SIGNERS[@]})) || { warn "В этой сборке kit нет ключа подписи – проверить обновление нечем."; return 1; }
+  command -v ssh-keygen >/dev/null || { warn "Нет ssh-keygen (пакет openssh-client) – подпись не проверить."; return 1; }
+  raw=$(kit_ref_raw "$v")
+  curl -fsSL --retry 3 -o "$d/SHA256SUMS" "$raw/SHA256SUMS" && curl -fsSL --retry 3 -o "$d/SHA256SUMS.sig" "$raw/SHA256SUMS.sig" \
+    || { warn "Не удалось скачать подпись релиза $v."; return 1; }
+  : >"$d/allowed_signers"
+  for k in "${KIT_SIGNERS[@]}"; do printf '%s namespaces="%s" %s\n' "$KIT_SIG_ID" "$KIT_SIG_NS" "$k" >>"$d/allowed_signers"; done
+  if ! ssh-keygen -Y verify -f "$d/allowed_signers" -I "$KIT_SIG_ID" -n "$KIT_SIG_NS" -s "$d/SHA256SUMS.sig" <"$d/SHA256SUMS" >/dev/null 2>&1; then
+    warn "Подпись релиза $v не сошлась с ключом автора – это не наш релиз. Ничего не ставлю."
+    return 1
+  fi
+  # Версия записана внутри подписанного файла: старый подписанный релиз под видом нового не пройдёт.
+  grep -qx "# 3X-UI KIT $v" "$d/SHA256SUMS" || { warn "Подписанный релиз не той версии – ничего не ставлю."; return 1; }
+  for f in scripts/kit.sh scripts/kit-sub.py; do
+    sum=$(awk -v f="$f" '$2 == f {print $1}' "$d/SHA256SUMS")
+    [[ $sum =~ ^[0-9a-f]{64}$ ]] || { warn "В подписанном списке нет $f."; return 1; }
+    curl -fsSL --retry 3 -o "$d/${f##*/}" "$raw/$f" || { warn "Не удалось скачать $f."; return 1; }
+    [[ $(sha256sum "$d/${f##*/}" | awk '{print $1}') == "$sum" ]] || { warn "$f не совпал с подписанным SHA256 – ничего не ставлю."; return 1; }
+  done
 }
 
 # Юнит kit-sub: без root (DynamicUser), конфиг и сертификат – через LoadCredential.
@@ -292,37 +335,110 @@ WantedBy=multi-user.target
 UNIT
 }
 
+# Подписка отвечает? Берём настоящего пользователя и спрашиваем kit-sub изнутри сервера.
+sub_ok() {
+  local cfg=/etc/kit-sub/config.json port path scheme=http sid i
+  port=$(jq -r '.port' "$cfg"); path=$(jq -r '.path' "$cfg")
+  [[ -n $(jq -r '.cert // empty' "$cfg") ]] && scheme=https
+  sid=$(clients 2>/dev/null | jq -r '[.[] | .subId // empty | select(. != "")][0] // empty' 2>/dev/null || true)
+  for i in $(seq 1 10); do
+    if [[ -n $sid ]]; then
+      curl -fsSk -m 5 -o /dev/null -A "Happ/1.0" "$scheme://127.0.0.1:$port$path$sid" 2>/dev/null && return 0
+    else
+      # Пользователей нет – достаточно, что служба жива и слушает порт.
+      systemctl is-active -q kit-sub && ss -Hltn "sport = :$port" | grep -q . && return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 # Сервер ещё не получил исправления 1.1 (например, kit обновили вручную из 1.0)?
 needs_migration() {
   [[ -f /etc/cron.d/kit-xui-menu ]] && return 0
   [[ -f /etc/systemd/system/kit-sub.service ]] && ! grep -q '^DynamicUser=yes' /etc/systemd/system/kit-sub.service && return 0
+  [[ ! -f $KIT_MANUAL ]] && ! auto_enabled && return 0
   return 1
 }
 
+# Автообновление: раз в сутки ночью со случайной задержкой, чтобы тысячи серверов не шли
+# на GitHub в одну минуту. Ставит только подписанные релизы и только kit и kit-sub.
+auto_on() {
+  cat >/etc/systemd/system/kit-update.service <<UNIT
+[Unit]
+Description=3X-UI KIT: автообновление kit и kit-sub (только подписанные релизы)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kit update --unattended
+StandardOutput=append:$KIT_UPDATE_LOG
+StandardError=append:$KIT_UPDATE_LOG
+UNIT
+  cat >/etc/systemd/system/kit-update.timer <<'UNIT'
+[Unit]
+Description=3X-UI KIT: проверка обновлений раз в сутки
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=3h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  rm -f "$KIT_MANUAL"
+  systemctl daemon-reload
+  systemctl enable --now kit-update.timer >/dev/null 2>&1
+}
+
+auto_off() {
+  systemctl disable --now kit-update.timer >/dev/null 2>&1 || true
+  install -d -m 700 /etc/kit
+  touch "$KIT_MANUAL"
+}
+
 cmd_update() {
-  local force=${1:-} latest tmp
+  local force="" unattended=no latest tmp
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --force) force=yes ;;
+      --auto) auto_on; say "Автообновление включено: раз в сутки ночью, только подписанные релизы. Журнал: $KIT_UPDATE_LOG"; return ;;
+      --manual) auto_off; say "Автообновление выключено. Обновляться вручную: kit update, включить снова: kit update --auto"; return ;;
+      --unattended) unattended=yes ;;
+      *) die "Неизвестный параметр: $1 (kit update [--force | --auto | --manual])" ;;
+    esac
+    shift
+  done
+  # Ночной запуск и ручной не должны встретиться.
+  exec 9>/run/kit-update.lock
+  flock -n 9 || die "Обновление уже идёт."
+  [[ $unattended == yes ]] && echo "--- $(date '+%F %T') kit $KIT_VERSION: проверяю обновления"
+
   latest=$(remote_version) || true
   [[ $latest =~ ^[0-9]+(\.[0-9]+)+$ ]] || die "Не удалось узнать последнюю версию: GitHub недоступен с сервера. Попробуйте позже."
   echo "$latest" >"$KIT_LATEST"
-  if ! newer "$latest" "$KIT_VERSION" && [[ $force != --force ]] && ! needs_migration; then
+  # Откатить на старую версию нельзя даже с подписью: только вперёд или та же.
+  newer "$KIT_VERSION" "$latest" && die "На GitHub версия $latest старше вашей $KIT_VERSION – ничего не делаю."
+  if ! newer "$latest" "$KIT_VERSION" && [[ $force != yes ]] && ! needs_migration; then
     say "У вас последняя версия: $KIT_VERSION."
-    echo "${D}Переустановить файлы kit той же версии: kit update --force${N}"
+    [[ $unattended == yes ]] || echo "${D}Переустановить файлы kit той же версии: kit update --force${N}"
     return
   fi
   if [[ $latest == "$KIT_VERSION" ]]; then say "Применяю исправления версии $latest"; else say "3X-UI KIT $KIT_VERSION → $latest"; fi
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' RETURN
-  curl -fsSL --retry 3 -o "$tmp/kit.sh" "$(kit_ref_raw "$latest")/scripts/kit.sh" && bash -n "$tmp/kit.sh" \
-    || die "Не удалось скачать новую версию kit – сервер не тронут."
+  # shellcheck disable=SC2064 # путь подставляем сразу: при выходе локальной переменной уже нет
+  trap "rm -rf -- '$tmp'" EXIT
+  fetch_release "$latest" "$tmp" || die "Сервер не тронут."
+  bash -n "$tmp/kit.sh" && python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$tmp/kit-sub.py" \
+    || die "Файлы релиза не прошли проверку синтаксиса – сервер не тронут."
 
-  # Подписка kit-sub: ставим новую, при сбое возвращаем старую.
+  # Подписка kit-sub: ставим новую, проверяем, что отвечает, иначе возвращаем старую.
   if [[ -f /usr/local/lib/kit-sub/kit_sub.py ]]; then
-    curl -fsSL --retry 3 -o "$tmp/kit_sub.py" "$(kit_ref_raw "$latest")/scripts/kit-sub.py" \
-      && python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$tmp/kit_sub.py" \
-      || die "Не удалось скачать kit-sub – сервер не тронут."
     cp /usr/local/lib/kit-sub/kit_sub.py "$tmp/kit_sub.old"
     cp /etc/systemd/system/kit-sub.service "$tmp/kit-sub.service.old"
-    install -m 644 "$tmp/kit_sub.py" /usr/local/lib/kit-sub/kit_sub.py
+    install -m 644 "$tmp/kit-sub.py" /usr/local/lib/kit-sub/kit_sub.py
     # С 1.1 kit-sub работает без root: переписываем юнит под DynamicUser и LoadCredential.
     local c k
     c=$(jq -r '.cert // empty' /etc/kit-sub/config.json); k=$(jq -r '.key // empty' /etc/kit-sub/config.json)
@@ -330,16 +446,16 @@ cmd_update() {
     [[ -n $c ]] && echo '19 4 * * * root systemctl restart kit-sub >/dev/null 2>&1' >/etc/cron.d/kit-sub-cert
     systemctl daemon-reload
     systemctl restart kit-sub
-    sleep 3
-    if systemctl is-active -q kit-sub; then
-      say "Подписка kit-sub обновлена"
+    sleep 2
+    if sub_ok; then
+      say "Подписка kit-sub обновлена и отвечает"
     else
       install -m 644 "$tmp/kit_sub.old" /usr/local/lib/kit-sub/kit_sub.py
       install -m 644 "$tmp/kit-sub.service.old" /etc/systemd/system/kit-sub.service
-      rm -f /etc/cron.d/kit-sub-cert
+      grep -q '^LoadCredential=cert.pem' "$tmp/kit-sub.service.old" || rm -f /etc/cron.d/kit-sub-cert
       systemctl daemon-reload
       systemctl restart kit-sub
-      warn "Новая kit-sub не запустилась – вернул прежнюю. Лог: journalctl -u kit-sub -n 30"
+      die "Новая подписка не ответила – вернул прежнюю, kit остался версии $KIT_VERSION. Лог: journalctl -u kit-sub -n 30"
     fi
   fi
 
@@ -353,14 +469,65 @@ cmd_update() {
   fi
   # 1.0 ставил cron, который каждый день правил файлы x-ui, – убираем.
   rm -f /etc/cron.d/kit-xui-menu
+  # Автообновление включено по умолчанию, пока его не выключили командой kit update --manual.
+  [[ -f $KIT_MANUAL ]] || auto_enabled || { auto_on; say "Включил автообновление: kit update --manual, чтобы выключить"; }
 
   # Через rename: bash дочитывает текущий kit по ходу работы, его файл трогать нельзя.
   install -m 755 "$tmp/kit.sh" /usr/local/bin/kit.new && mv -f /usr/local/bin/kit.new /usr/local/bin/kit
   echo
   echo "${G}✓ Готово: 3X-UI KIT $latest.${N} Пользователи, ссылки и подписки не менялись."
+  [[ $unattended == yes ]] && return
   local news
   news=$(changelog_of "$latest")
   if [[ -n $news ]]; then echo; echo "${B}Что нового в $latest${N}"; echo "$news"; fi
+}
+
+# ---------- резервная копия ----------
+
+# Всё, что нужно, чтобы поднять тот же сервер в другом месте: база панели (пользователи,
+# ключи, подключения), настройки kit и kit-sub, nginx, сайт-заглушка, свои сертификаты.
+# Сертификат Let's Encrypt на IP не берём: на новом сервере он выпускается заново.
+BACKUP_PATHS=(/etc/x-ui/install-result.env /etc/kit/kit.env /etc/kit-sub/config.json
+  /etc/nginx/kit-stream.conf /etc/nginx/conf.d/kit.conf /var/www/kit /root/cert/self /root/cert/custom /root/3x-ui.txt)
+
+cmd_backup() {
+  local out tmp p ssl=none c
+  out=/root/kit-backup-$(date +%Y%m%d-%H%M).tar.gz
+  tmp=$(mktemp -d)
+  # shellcheck disable=SC2064 # путь подставляем сразу: при выходе локальной переменной уже нет
+  trap "rm -rf -- '$tmp'" EXIT
+  install -d -m 700 "$tmp/etc/x-ui"
+  # Снимок базы средствами SQLite: панель продолжает работать, копия целая.
+  python3 - /etc/x-ui/x-ui.db "$tmp/etc/x-ui/x-ui.db" <<'PY' || die "Не удалось скопировать базу панели."
+import sqlite3, sys
+src = sqlite3.connect("file:%s?mode=ro" % sys.argv[1], uri=True)
+dst = sqlite3.connect(sys.argv[2])
+src.backup(dst)
+dst.close(); src.close()
+PY
+  for p in "${BACKUP_PATHS[@]}"; do if [[ -e $p ]]; then cp -a --parents "$p" "$tmp"; fi; done
+  # Какой сертификат был у панели и подписки – новый сервер должен получить такой же.
+  c=$(jq -r '.cert // empty' /etc/kit-sub/config.json 2>/dev/null || true)
+  [[ -z $c && -f /etc/nginx/conf.d/kit.conf ]] && c=$(awk '$1 == "ssl_certificate" {sub(/;$/, "", $2); print $2; exit}' /etc/nginx/conf.d/kit.conf)
+  case $c in
+    /root/cert/ip/*) ssl=ip ;;
+    /root/cert/custom/*) ssl=custom ;;
+  esac
+  {
+    printf 'BACKUP_KIT_VERSION=%q\n' "$KIT_VERSION"
+    printf 'BACKUP_HOST=%q\n' "$HOST"
+    printf 'BACKUP_SSL=%q\n' "$ssl"
+    printf 'BACKUP_DATE=%q\n' "$(date +%F)"
+  } >"$tmp/kit-backup.env"
+  (umask 077; tar -czf "$out" -C "$tmp" .)
+  chmod 600 "$out"
+  say "Резервная копия: ${B}$out${N} ($(du -h "$out" | cut -f1))"
+  echo
+  echo "В ней ключи и пароли от сервера, храните её как пароль. Скачать к себе (на компьютере):"
+  echo "  ${B}scp root@$HOST:$out .${N}"
+  echo
+  echo "Поднять сервер из копии на новом VPS:"
+  echo "  ${B}bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh) --restore ${out##*/}${N}"
 }
 
 usage() {
@@ -376,7 +543,9 @@ ${B}kit${N} $KIT_VERSION – управление сервером 3X-UI KIT
   kit user del имя                                        удалить
 
 Сервер:
-  kit update            обновить kit и подписку kit-sub (пользователи и ссылки не меняются)
+  kit update            обновить kit и подписку kit-sub сейчас (пользователи и ссылки не меняются)
+  kit update --manual   выключить автообновление (--auto – включить обратно)
+  kit backup            резервная копия для переезда на другой сервер
   kit version           версия kit, панели и ядра
 EOF
 }
@@ -389,7 +558,8 @@ case "${1:-} ${2:-}" in
   "user off") cmd_toggle "${3:-}" false ;;
   "user on") cmd_toggle "${3:-}" true ;;
   "user del") shift 2; cmd_del "$@" ;;
-  "update "*) cmd_update "${2:-}" ;;
+  "update "*) shift; cmd_update "$@" ;;
+  "backup "*) cmd_backup ;;
   "version "*|"--version "*|"-v "*) cmd_version ;;
   *) usage; update_hint ;;
 esac

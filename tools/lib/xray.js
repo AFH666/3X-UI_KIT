@@ -71,9 +71,9 @@
             peers: [clean({ publicKey: p.publicKey, preSharedKey: p.preSharedKey, endpoint: p.server + ':' + p.port, allowedIPs: ['0.0.0.0/0', '::/0'] })] }),
         };
       default:
-        throw new Error({ tuic: 'TUIC не поддерживается Xray — возьмите генератор Mihomo',
-          amneziawg: 'AmneziaWG не поддерживается Xray — возьмите генератор Mihomo',
-          mtproto: 'MTProto — это прокси для Telegram, в Xray он не нужен' }[p.type] || 'протокол ' + p.type + ' не поддерживается Xray');
+        throw new Error({ tuic: 'TUIC не поддерживается Xray – возьмите генератор Mihomo',
+          amneziawg: 'AmneziaWG не поддерживается Xray – возьмите генератор Mihomo',
+          mtproto: 'MTProto – это прокси для Telegram, в Xray он не нужен' }[p.type] || 'протокол ' + p.type + ' не поддерживается Xray');
     }
   }
 
@@ -96,7 +96,7 @@
     { id: 'discord', label: 'Discord', on: true, zkeen: { i: ['discord'] }, v2fly: { d: ['discord'] } },
     { id: 'twitter', label: 'X (Twitter)', on: true, v2fly: { d: ['twitter'] } },
     { id: 'ai', label: 'ChatGPT, Claude и другие ИИ', on: true, v2fly: { d: ['category-ai-!cn'] } },
-    { id: 'cdn', label: 'Зарубежные CDN и хостинги', hint: 'Cloudflare, Hetzner, DigitalOcean… — их часто замедляют', on: true,
+    { id: 'cdn', label: 'Зарубежные CDN и хостинги', hint: 'Cloudflare, Hetzner, DigitalOcean… – их часто замедляют', on: true,
       zkeen: { i: ['akamai', 'amazon', 'arelion', 'azure', 'bunnycdn', 'cdn77', 'cloudflare', 'cogent', 'colocrossing', 'contabo',
         'datacamp', 'digitalocean', 'fastly', 'frantech', 'gcore', 'hetzner', 'leaseweb', 'linode', 'liquidweb', 'mega', 'melbicom',
         'oracle', 'ovh', 'scaleway', 'vodafone', 'vultr'] } },
@@ -128,7 +128,7 @@
     }));
     const uniq = (a) => Array.from(new Set(a));
 
-    // Политика xkeen_full: всё с этих входов — через прокси (как в стандартном конфиге XKeen).
+    // Политика xkeen_full: всё с этих входов – через прокси (как в стандартном конфиге XKeen).
     const rules = [{ inboundTag: ['force-proxy-redirect', 'force-proxy-tproxy'], outboundTag: proxyTag }];
     const dd = domains(opts.directDomains), pd = domains(opts.proxyDomains);
     if (dd.length) rules.push({ domain: dd.map((d) => 'domain:' + d), outboundTag: 'direct' });
@@ -157,7 +157,7 @@
     const warnings = [];
     proxies.forEach((p) => {
       const insecure = (p.tls && p.tls.insecure && !p.tls.pin) || (p.type === 'hysteria2' && p.insecure && !p.pinSHA256);
-      if (insecure) warnings.push(p.name + ': в ссылке отключена проверка сертификата, а Xray 26 так не умеет — нужен отпечаток (pcs) или настоящий сертификат');
+      if (insecure) warnings.push(p.name + ': в ссылке отключена проверка сертификата, а Xray 26 так не умеет – нужен отпечаток (pcs) или настоящий сертификат');
       try {
         const tag = outs.length === 0 ? mainTag : mainTag + '-' + (outs.length + 1);
         outs.push(outbound(p, tag));
@@ -167,7 +167,7 @@
     });
     if (!outs.length) throw new Error(skipped.length ? skipped[0].error : 'Добавьте хотя бы одну ссылку.');
 
-    // Несколько серверов — балансировщик по пингу выбирает лучший.
+    // Несколько серверов – балансировщик по пингу выбирает лучший.
     const multi = outs.length > 1;
     let obs = null;
     const proxyTarget = mainTag;

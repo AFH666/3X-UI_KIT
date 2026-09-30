@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Подписка с учётом приложения — посредник перед подпиской 3X-UI.
+"""Подписка с учётом приложения – посредник перед подпиской 3X-UI.
 
 https://github.com/itsnotkubrick/3X-UI_KIT
 
 Слушает публичный адрес подписки (HTTPS) и ходит в подписку 3X-UI на 127.0.0.1:
-  * Clash / Mihomo (Clash Verge, FlClash, Mihomo Party…) — конфиг 3X-UI плюс AmneziaWG
+  * Clash / Mihomo (Clash Verge, FlClash, Mihomo Party…) – конфиг 3X-UI плюс AmneziaWG
     из подписки «<id>-awg»: Mihomo умеет AmneziaWG, а остальные приложения нет;
-  * остальные приложения и браузер — ответ 3X-UI как есть (ссылки или страница);
-  * заголовок Subscription-Userinfo: expire=0 («бессрочно») убирается — иначе
+  * остальные приложения и браузер – ответ 3X-UI как есть (ссылки или страница);
+  * заголовок Subscription-Userinfo: expire=0 («бессрочно») убирается – иначе
     приложения показывают срок «01.01.1970».
 
-Настройки — /etc/kit-sub/config.json. Сертификат перечитывается сам после продления.
+Настройки – /etc/kit-sub/config.json. Сертификат перечитывается сам после продления.
 """
 
 import base64
@@ -64,14 +64,14 @@ def upstream(sub_id, ua, host, accept):
 
 
 def fix_userinfo(value):
-    # «expire=0» значит «бессрочно», но приложения рисуют 01.01.1970 — убираем.
+    # «expire=0» значит «бессрочно», но приложения рисуют 01.01.1970 – убираем.
     parts = [p.strip() for p in value.split(";") if p.strip() and p.strip() != "expire=0"]
     return "; ".join(parts)
 
 
 def strip_links(body):
-    """Список ссылок (base64 или текст) без vpn:// и tg:// — их не умеет ни одно VPN-приложение
-    со ссылками: vpn:// — конфиг для AmneziaVPN, tg:// — прокси для Telegram."""
+    """Список ссылок (base64 или текст) без vpn:// и tg:// – их не умеет ни одно VPN-приложение
+    со ссылками: vpn:// – конфиг для AmneziaVPN, tg:// – прокси для Telegram."""
     text = body.decode("utf-8", "replace").strip()
     encoded = "://" not in text
     if encoded:
@@ -85,7 +85,7 @@ def strip_links(body):
 
 
 def strip_awg(clash_yaml):
-    """Clash-конфиг без AmneziaWG — для приложений, которые его не умеют."""
+    """Clash-конфиг без AmneziaWG – для приложений, которые его не умеют."""
     cfg = yaml.safe_load(clash_yaml)
     if not isinstance(cfg, dict):
         return clash_yaml
@@ -110,7 +110,7 @@ def merge_awg(main_yaml, awg_yaml):
         return main_yaml
     names = {p.get("name") for p in main.get("proxies") or []}
     for p in extra:
-        # 3X-UI дописывает к имени запись-«двойника» («AmneziaWG-3.1-sasha-awg») — убираем хвост.
+        # 3X-UI дописывает к имени запись-«двойника» («AmneziaWG-3.1-sasha-awg») – убираем хвост.
         p["name"] = re.sub(r"-[^-\s]+-awg\d*$", "", p["name"]) or p["name"]
         base, n = p["name"], 2
         while p["name"] in names:
@@ -133,7 +133,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     timeout = 20  # зависшие соединения не держим
 
     def setup(self):
-        # TLS-рукопожатие — в потоке запроса, а не в общем цикле приёма соединений.
+        # TLS-рукопожатие – в потоке запроса, а не в общем цикле приёма соединений.
         # Без сертификата (за nginx, на 127.0.0.1) работаем по обычному HTTP.
         self.request.settimeout(self.timeout)
         if self.server.ssl_ctx is not None:
@@ -177,13 +177,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         clash = bool(CLASH_UA.search(ua)) and "yaml" in headers.get("content-type", "")
         awg = clash and not NO_AWG_UA.search(ua)
-        # В журнал — только приложение и что ему отдали, без IP.
+        # В журнал – только приложение и что ему отдали, без IP.
         log(f"{ua[:80]!r} → {'clash+awg' if awg else 'clash' if clash else headers.get('content-type', '?').split(';')[0]}")
         try:
             if code == 200 and clash and not awg:
                 body = strip_awg(body)
             elif code == 200 and awg and not sub_id.endswith(("-awg", "-tg")):
-                # Установки до kit 1.1 держали AmneziaWG в подписке «<id>-awg» — подмешиваем её.
+                # Установки до kit 1.1 держали AmneziaWG в подписке «<id>-awg» – подмешиваем её.
                 acode, _, abody = upstream(sub_id + "-awg", ua, host, accept)
                 if acode == 200 and abody:
                     body = merge_awg(body, abody)
@@ -208,7 +208,7 @@ class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
     ssl_ctx = None
 
-    def handle_error(self, request, client_address):  # обрывы TLS от сканеров — не ошибка
+    def handle_error(self, request, client_address):  # обрывы TLS от сканеров – не ошибка
         pass
     address_family = socket.AF_INET6 if ":" in CONF.get("listen", "") else socket.AF_INET
 
@@ -228,7 +228,7 @@ def main():
     stamp = [os.path.getmtime(cert)]
 
     def reload_cert():
-        # Let's Encrypt на IP живёт 6 дней — после продления берём новый сертификат без перезапуска.
+        # Let's Encrypt на IP живёт 6 дней – после продления берём новый сертификат без перезапуска.
         while True:
             time.sleep(600)
             try:

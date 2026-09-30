@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 3X-UI со всеми протоколами одной командой — https://github.com/itsnotkubrick/3X-UI_KIT
+# 3X-UI со всеми протоколами одной командой – https://github.com/itsnotkubrick/3X-UI_KIT
 #
 # Установка:  bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh)
 #
@@ -8,7 +8,7 @@
 # REALITY, XHTTP, VLESS/VMess WS, Trojan gRPC, Shadowsocks 2022, Hysteria2, TUIC,
 # AmneziaWG (классика и 3.1) и MTProto (и WireGuard по запросу), включает единую подписку
 # с форматом под каждый клиент и настраивает ufw. Домены не нужны.
-# Каждый протокол проверен настоящими клиентами — см. tests/matrix.
+# Каждый протокол проверен настоящими клиентами – см. tests/matrix.
 
 set -Eeuo pipefail
 
@@ -19,19 +19,19 @@ KIT_VERSION="1.1"
 # kit и kit-sub берём из того же релиза, что и этот скрипт, а не из меняющейся ветки main.
 KIT_RAW="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$KIT_VERSION"
 # Ядро Xray для панели. С 26.7.x клиенты на Mihomo и sing-box (Hiddify, FlClash,
-# Clash Verge, Mihomo в XKeen) не проходят REALITY — проверено 2026-09-25.
-# 26.6.27 — последняя версия, с которой работают все клиенты и которую принимает 3X-UI.
+# Clash Verge, Mihomo в XKeen) не проходят REALITY – проверено 2026-09-25.
+# 26.6.27 – последняя версия, с которой работают все клиенты и которую принимает 3X-UI.
 XRAY_CORE="v26.6.27"
 XUI_REPO="MHSanaei/3x-ui"
 RESULT=/root/3x-ui.txt
 XUI_ENV=/etc/x-ui/install-result.env
 # Сайты для маскировки REALITY: нужны TLS 1.3 и HTTP/2. Берём первый доступный.
-# Apple, iCloud, Microsoft и домены .ru сам Xray не советует — их тут нет.
+# Apple, iCloud, Microsoft и домены .ru сам Xray не советует – их тут нет.
 SNI_CANDIDATES=(dl.google.com www.amazon.com www.samsung.com www.yahoo.com)
 
 ALL_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic wg awg awg3 mtproto)
 # Обычный WireGuard в России режет DPI (проверено 2026-09-27: рукопожатие доходит до сервера,
-# ответ — нет), а его попытки могут привлечь блокировку IP. По умолчанию не ставим.
+# ответ – нет), а его попытки могут привлечь блокировку IP. По умолчанию не ставим.
 DEFAULT_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic awg awg3 mtproto)
 declare -A PORTS=([xhttp]=8443 [ws]=2053 [trojan]=2083 [vmess]=2087 [ss]=8388 [tuic]=8444 [wg]=51820 [awg]=51821 [awg3]=51822 [mtproto]=8445)
 PROTOS=(); CREATED=(); OPEN=()
@@ -101,7 +101,7 @@ wait_panel() {
 
 # ---------- установка ----------
 
-# Пасхалка — только в конце установки.
+# Пасхалка – только в конце установки.
 kit_banner() {
   echo
   printf '%s' "$G"
@@ -119,7 +119,7 @@ ART
   echo "  https://github.com/itsnotkubrick/3X-UI_KIT"
   echo "  ${D}it's not Kubrick. it's just a VPN.${N}"
   echo
-  echo "Ниже — данные для входа в панель и подключения."
+  echo "Ниже – данные для входа в панель и подключения."
 }
 
 main() {
@@ -128,14 +128,14 @@ main() {
   if [[ -f $RESULT && -x /usr/local/x-ui/x-ui ]]; then
     die "3X-UI уже установлена этим скриптом. Управление: команда x-ui, данные для входа: cat $RESULT"
   fi
-  # Панель удалили через меню x-ui, а наши файлы остались — убираем их и ставим заново.
+  # Панель удалили через меню x-ui, а наши файлы остались – убираем их и ставим заново.
   if [[ -f $RESULT ]]; then
-    warn "Панель 3X-UI удалена, но остались файлы прошлой установки — убираю их."
-    systemctl disable --now kit-sub >/dev/null 2>&1 || true
-    rm -rf /etc/systemd/system/kit-sub.service /usr/local/lib/kit-sub /etc/kit-sub /etc/kit /usr/local/bin/kit \
+    warn "Панель 3X-UI удалена, но остались файлы прошлой установки – убираю их."
+    systemctl disable --now kit-sub kit-update.timer >/dev/null 2>&1 || true
+    rm -rf /etc/systemd/system/kit-sub.service /etc/systemd/system/kit-update.service /etc/systemd/system/kit-update.timer /usr/local/lib/kit-sub /etc/kit-sub /etc/kit /usr/local/bin/kit \
       /etc/cron.d/kit-nginx-reload /etc/cron.d/kit-xui-menu /etc/cron.d/kit-sub-cert "$RESULT"
     systemctl daemon-reload
-    # Наш nginx держит 443 — без этого проверка порта ниже не пустит REALITY.
+    # Наш nginx держит 443 – без этого проверка порта ниже не пустит REALITY.
     if [[ -f /etc/nginx/kit-stream.conf ]]; then
       systemctl stop nginx >/dev/null 2>&1 || true
       rm -f /etc/nginx/kit-stream.conf /etc/nginx/conf.d/kit.conf
@@ -143,10 +143,10 @@ main() {
     fi
   fi
   if [[ -d /usr/local/x-ui && ! -f $XUI_ENV ]]; then
-    die "3X-UI уже установлена другим способом — не трогаю её. Удалите её (x-ui uninstall) или добавьте REALITY в панели вручную."
+    die "3X-UI уже установлена другим способом – не трогаю её. Удалите её (x-ui uninstall) или добавьте REALITY в панели вручную."
   fi
 
-  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey="" multi=no
+  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey="" multi=no restore=""
   while [[ $# -gt 0 ]]; do
     case $1 in
       --port) PORT=$2; shift 2 ;;
@@ -159,12 +159,18 @@ main() {
       --multi-port) multi=yes; shift ;;
       --key) ukey=$2; shift 2 ;;
       --no-ufw) UFW=no; shift ;;
+      --restore) restore=$2; shift 2 ;;
       -y|--yes) yes=yes; shift ;;
       -h|--help) usage; exit 0 ;;
       *) die "Неизвестный параметр: $1 (см. --help)" ;;
     esac
   done
   [[ $PORT =~ ^[0-9]+$ ]] && ((PORT > 0 && PORT < 65536)) || die "Неверный порт: $PORT"
+  if [[ -n $restore ]]; then
+    [[ -z $HOST || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host при восстановлении: IP нового сервера"
+    restore_main "$restore"
+    return
+  fi
   local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например dl.google.com"
   [[ -z $HOST || $HOST =~ $re_host || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host: нужен IP или домен"
@@ -172,7 +178,7 @@ main() {
   [[ $PANEL_SSL =~ ^(auto|ip|none)$ ]] || die "--panel-ssl: auto, ip или none"
   if [[ -n $ucert || -n $ukey ]]; then
     [[ -s $ucert && -s $ukey ]] || die "Нужны оба файла: --cert fullchain.pem --key privkey.pem"
-    openssl x509 -in "$ucert" -noout 2>/dev/null || die "$ucert — не сертификат в формате PEM"
+    openssl x509 -in "$ucert" -noout 2>/dev/null || die "$ucert – не сертификат в формате PEM"
     PANEL_SSL=custom
   fi
   case $protos in
@@ -183,19 +189,19 @@ main() {
        for x in "${PROTOS[@]}"; do [[ " ${ALL_PROTOS[*]} " == *" $x "* ]] || die "Неизвестный протокол: $x. Доступны: ${ALL_PROTOS[*]}"; done ;;
   esac
   if port_busy "$PORT" tcp && ! { [[ -f $XUI_ENV ]] && ss -H -ltnp "sport = :$PORT" | grep -q -E 'xray|nginx'; }; then
-    die "Порт $PORT/tcp уже занят. REALITY нужен свободный порт — укажите другой: --port 8443"
+    die "Порт $PORT/tcp уже занят. REALITY нужен свободный порт – укажите другой: --port 8443"
   fi
 
   if [[ $PANEL_SSL == auto ]]; then
     if port_busy 80 tcp; then
       PANEL_SSL=none
-      warn "Порт 80 занят — сертификат для панели не получить. Панель будет доступна только через SSH-туннель."
+      warn "Порт 80 занят – сертификат для панели не получить. Панель будет доступна только через SSH-туннель."
     else
       PANEL_SSL=ip
     fi
   fi
   [[ $PANEL_SSL == ip ]] && port_busy 80 tcp && die "Для сертификата панели нужен свободный порт 80/tcp."
-  # Доверенный сертификат (Let's Encrypt или свой) — панель и подписка доступны снаружи по HTTPS.
+  # Доверенный сертификат (Let's Encrypt или свой) – панель и подписка доступны снаружи по HTTPS.
   TRUSTED=no
   [[ $PANEL_SSL == ip || $PANEL_SSL == custom ]] && TRUSTED=yes
   if [[ $PANEL_SSL == custom ]]; then
@@ -219,7 +225,7 @@ main() {
     done
     [[ -n $SNI ]] || die "Ни один сайт из списка не ответил по TLS 1.3 + HTTP/2. Укажите свой: --sni example.com"
   elif ! sni_ok "$SNI"; then
-    die "$SNI не отвечает по TLS 1.3 + HTTP/2 — REALITY с ним работать не будет. Выберите другой сайт."
+    die "$SNI не отвечает по TLS 1.3 + HTTP/2 – REALITY с ним работать не будет. Выберите другой сайт."
   fi
   say "Маскировка: ${B}$SNI${N}"
   # Для режима «всё на 443» XHTTP и MTProto нужны свои сайты: nginx различает их по SNI.
@@ -231,41 +237,20 @@ main() {
   SNI2=${SNI2:-$SNI}; SNI3=${SNI3:-www.cloudflare.com}
 
   # --- официальный установщик 3X-UI с закреплённой версией ---
-  local panel_port panel_path panel_user panel_pass tmp
+  local panel_port panel_path panel_user panel_pass
   panel_port=$(free_port)
   panel_path=$(rand_str 18)
   panel_user=$(rand_str 10)
   panel_pass=$(rand_str 20)
   if [[ -f $XUI_ENV ]]; then
-    say "3X-UI уже стоит после прошлого запуска — продолжаю с создания подключений"
+    say "3X-UI уже стоит после прошлого запуска – продолжаю с создания подключений"
   else
-  tmp=$(mktemp)
-  say "Ставлю 3X-UI $XUI_VERSION официальным установщиком (пара минут)"
-  curl -fsSL --retry 3 -o "$tmp" "https://raw.githubusercontent.com/$XUI_REPO/$XUI_VERSION/install.sh"
-  [[ $(sha256sum "$tmp" | awk '{print $1}') == "$XUI_INSTALL_SHA256" ]] \
-    || die "Установщик 3X-UI $XUI_VERSION не совпал с проверенным (SHA256) – не запускаю. Сообщите нам: github.com/itsnotkubrick/3X-UI_KIT/issues"
-  if ! XUI_NONINTERACTIVE=1 XUI_SSL_MODE="${PANEL_SSL/custom/none}" XUI_SERVER_IP="$HOST" \
-      XUI_PANEL_PORT="$panel_port" XUI_WEB_BASE_PATH="$panel_path" \
-      XUI_USERNAME="$panel_user" XUI_PASSWORD="$panel_pass" \
-      bash "$tmp" "$XUI_VERSION" </dev/null >/var/log/3x-ui-install.log 2>&1; then
-    tail -20 /var/log/3x-ui-install.log >&2
-    die "Установщик 3X-UI завершился с ошибкой. Полный лог: /var/log/3x-ui-install.log"
-  fi
-  rm -f "$tmp"
+    install_xui "$panel_port" "$panel_path" "$panel_user" "$panel_pass"
   fi
   [[ -f $XUI_ENV ]] || die "Установщик не сохранил данные входа. Лог: /var/log/3x-ui-install.log"
 
-  # Данные для входа — из файла, который пишет сам установщик.
-  # shellcheck disable=SC1090
-  . "$XUI_ENV"
-  TOKEN=$XUI_API_TOKEN
-  # Панель может уже работать по HTTPS (сертификат ставится после установщика) — пробуем оба.
-  local scheme
-  for scheme in https http; do
-    API="$scheme://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
-    curl -fsk -m 5 -o /dev/null -H "Authorization: Bearer $XUI_API_TOKEN" "$API/server/getNewUUID" 2>/dev/null && break
-  done
-  wait_panel
+  # Данные для входа – из файла, который пишет сам установщик.
+  connect_panel
 
   if [[ $PANEL_SSL == custom ]]; then
     say "Подключаю ваш сертификат к панели"
@@ -277,7 +262,7 @@ main() {
 
   # Без сертификата панель и подписки не должны торчать наружу по HTTP.
   if [[ $PANEL_SSL == none ]]; then
-    say "Панель без сертификата — открываю её только для SSH-туннеля (127.0.0.1)"
+    say "Панель без сертификата – открываю её только для SSH-туннеля (127.0.0.1)"
     local all
     all=$(api POST setting/all '{}')
     api POST setting/update "$(jq -c '.webListen = "127.0.0.1" | .subListen = "127.0.0.1"' <<<"$all")" >/dev/null
@@ -286,18 +271,7 @@ main() {
   fi
 
   # --- ядро Xray, совместимое со всеми клиентами ---
-  local cur_core
-  cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
-  if [[ $cur_core != "$XRAY_CORE" ]]; then
-    say "Ставлю ядро Xray $XRAY_CORE (совместимо с Hiddify, Mihomo и другими клиентами)"
-    api POST "server/installXray/$XRAY_CORE" '{}' >/dev/null
-    for _ in $(seq 1 30); do
-      cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
-      [[ $cur_core == "$XRAY_CORE" ]] && break
-      sleep 2
-    done
-    [[ $cur_core == "$XRAY_CORE" ]] || warn "Не удалось сменить ядро Xray (сейчас $cur_core). Клиенты на Mihomo и sing-box могут не подключиться."
-  fi
+  set_xray_core
 
   # --- сертификат для протоколов с TLS ---
   setup_tls_cert
@@ -305,18 +279,18 @@ main() {
   # --- подключения: все выбранные протоколы, один subId на пользователя ---
   EXISTING=$(api GET inbounds/list)
   SUBID=""
-  # «Всё на 443» — для новых установок с доверенным сертификатом. Старую многопортовую
-  # установку не переделываем: перенос работающих подключений — осознанное решение.
+  # «Всё на 443» – для новых установок с доверенным сертификатом. Старую многопортовую
+  # установку не переделываем: перенос работающих подключений – осознанное решение.
   if [[ $TRUSTED == yes && $multi == no ]]; then
     if jq -e 'any(.[]; .remark == "REALITY" and (.listen // "") != "127.0.0.1")' <<<"$EXISTING" >/dev/null; then
-      warn "Установка уже работает в режиме с отдельными портами — оставляю его."
+      warn "Установка уже работает в режиме с отдельными портами – оставляю его."
     else
       SINGLE=yes
     fi
   fi
   local p
   for p in "${PROTOS[@]}"; do "proto_$p"; done
-  # Первый пользователь — сразу на всех протоколах (как «kit user add»).
+  # Первый пользователь – сразу на всех протоколах (как «kit user add»).
   ensure_user
 
   # --- подписка: ссылки, Clash/Mihomo и JSON с автоопределением клиента ---
@@ -324,19 +298,14 @@ main() {
   [[ $SINGLE == yes ]] && setup_nginx
   install_kit_cli
   brand_xui_menu
+  # Автообновление kit и kit-sub: только подписанные релизы, выключается kit update --manual.
+  /usr/local/bin/kit update --auto >/dev/null 2>&1 || warn "Автообновление не включилось – включите позже: kit update --auto"
 
   # --- файрвол ---
   if [[ $UFW == yes ]]; then
-    local ssh_port
-    ssh_port=$(ss -H -ltnp 2>/dev/null | awk '/sshd/ {sub(/.*:/,"",$4); print $4; exit}')
-    ssh_port=${ssh_port:-22}
-    OPEN+=("$ssh_port/tcp")
     [[ $TRUSTED == yes && $SINGLE == no ]] && OPEN+=("$XUI_PANEL_PORT/tcp" "$SUB_PORT/tcp")
     [[ $PANEL_SSL == ip ]] && OPEN+=("80/tcp")
-    say "Настраиваю ufw: ${OPEN[*]}"
-    local o
-    for o in "${OPEN[@]}"; do ufw allow "$o" >/dev/null; done
-    ufw --force enable >/dev/null || warn "ufw не включился (так бывает в контейнерах) — откройте порты у хостера вручную."
+    setup_ufw
   fi
 
   # --- итог ---
@@ -359,13 +328,13 @@ main() {
   [[ $SINGLE == yes ]] && links=$(sed "s/^\(tg:\/\/proxy?\)\(.*\)port=${INNER[mtproto]}/\1\2port=443/" <<<"$links")
   umask 077
   {
-    echo "3X-UI KIT (3X-UI $XUI_VERSION) — данные для входа (файл виден только root)"
+    echo "3X-UI KIT (3X-UI $XUI_VERSION) – данные для входа (файл виден только root)"
     echo
     echo "Панель:  $panel_url"
     echo "Логин:   $XUI_USERNAME"
     echo "Пароль:  $XUI_PASSWORD"
     echo
-    [[ $TRUSTED == yes ]] && { echo "Подписка ($NAME) — все протоколы одной ссылкой:"; echo "$SUB_URL"; echo; }
+    [[ $TRUSTED == yes ]] && { echo "Подписка ($NAME) – все протоколы одной ссылкой:"; echo "$SUB_URL"; echo; }
     echo "Отдельные подключения ($NAME):"
     echo "$links"
   } >"$RESULT"
@@ -380,7 +349,7 @@ main() {
   echo "Пароль:  ${B}$XUI_PASSWORD${N}"
   echo
   if [[ $TRUSTED == yes ]]; then
-    echo "Подписка для ${B}$NAME${N} — все протоколы одной ссылкой. Вставьте её в Hiddify, v2rayN, Happ,"
+    echo "Подписка для ${B}$NAME${N} – все протоколы одной ссылкой. Вставьте её в Hiddify, v2rayN, Happ,"
     echo "Clash Verge или FlClash: приложение само получит подходящий формат."
     echo
     echo "$SUB_URL"
@@ -388,22 +357,77 @@ main() {
     qrencode -t ANSIUTF8 -m 1 "$SUB_URL" || true
     if [[ -n $AWG_LINKS ]]; then
       echo
-      echo "AmneziaWG приходит по подписке в Clash Verge и FlClash; для AmneziaVPN — ссылки vpn:// в $RESULT."
+      echo "AmneziaWG приходит по подписке в Clash Verge и FlClash; для AmneziaVPN – ссылки vpn:// в $RESULT."
     fi
   else
-    echo "Без сертификата подписка недоступна снаружи — вот ссылки по одной:"
+    echo "Без сертификата подписка недоступна снаружи – вот ссылки по одной:"
     echo
     echo "$links"
   fi
   echo
   if [[ -n $PIN && " ${CREATED[*]} " == *" TUIC "* ]]; then
-    warn "TUIC со своим сертификатом: в клиенте включите «Разрешить небезопасный» (allow insecure) — отпечаток TUIC-ссылки не передают."
+    warn "TUIC со своим сертификатом: в клиенте включите «Разрешить небезопасный» (allow insecure) – отпечаток TUIC-ссылки не передают."
   fi
   echo "Всё это сохранено в ${B}$RESULT${N}."
   echo
-  echo "Дополнительные пользователи — одной командой, сразу во все протоколы, со своей подпиской:"
+  echo "Дополнительные пользователи – одной командой, сразу во все протоколы, со своей подпиской:"
   echo "  ${B}kit user add sasha --gb 50 --days 30${N}"
-  echo "  ${B}kit user list${N}     — кто сколько израсходовал и до какого числа"
+  echo "  ${B}kit user list${N}     – кто сколько израсходовал и до какого числа"
+}
+
+# Официальный установщик 3X-UI закреплённой версии, сверенный по SHA256.
+install_xui() { # порт путь логин пароль
+  local tmp
+  tmp=$(mktemp)
+  say "Ставлю 3X-UI $XUI_VERSION официальным установщиком (пара минут)"
+  curl -fsSL --retry 3 -o "$tmp" "https://raw.githubusercontent.com/$XUI_REPO/$XUI_VERSION/install.sh"
+  [[ $(sha256sum "$tmp" | awk '{print $1}') == "$XUI_INSTALL_SHA256" ]] \
+    || die "Установщик 3X-UI $XUI_VERSION не совпал с проверенным (SHA256) – не запускаю. Сообщите нам: github.com/itsnotkubrick/3X-UI_KIT/issues"
+  if ! XUI_NONINTERACTIVE=1 XUI_SSL_MODE="${PANEL_SSL/custom/none}" XUI_SERVER_IP="$HOST" \
+      XUI_PANEL_PORT="$1" XUI_WEB_BASE_PATH="$2" \
+      XUI_USERNAME="$3" XUI_PASSWORD="$4" \
+      bash "$tmp" "$XUI_VERSION" </dev/null >/var/log/3x-ui-install.log 2>&1; then
+    tail -20 /var/log/3x-ui-install.log >&2
+    die "Установщик 3X-UI завершился с ошибкой. Полный лог: /var/log/3x-ui-install.log"
+  fi
+  rm -f "$tmp"
+}
+
+# Панель: API по https или http – сертификат мог появиться после установщика.
+connect_panel() {
+  # shellcheck disable=SC1090
+  . "$XUI_ENV"
+  TOKEN=$XUI_API_TOKEN
+  local scheme
+  for scheme in https http; do
+    API="$scheme://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
+    curl -fsk -m 5 -o /dev/null -H "Authorization: Bearer $XUI_API_TOKEN" "$API/server/getNewUUID" 2>/dev/null && break
+  done
+  wait_panel
+}
+
+set_xray_core() {
+  local cur_core
+  cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
+  if [[ $cur_core != "$XRAY_CORE" ]]; then
+    say "Ставлю ядро Xray $XRAY_CORE (совместимо с Hiddify, Mihomo и другими клиентами)"
+    api POST "server/installXray/$XRAY_CORE" '{}' >/dev/null
+    for _ in $(seq 1 30); do
+      cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
+      [[ $cur_core == "$XRAY_CORE" ]] && break
+      sleep 2
+    done
+    [[ $cur_core == "$XRAY_CORE" ]] || warn "Не удалось сменить ядро Xray (сейчас $cur_core). Клиенты на Mihomo и sing-box могут не подключиться."
+  fi
+}
+
+setup_ufw() {
+  local ssh_port o
+  ssh_port=$(ss -H -ltnp 2>/dev/null | awk '/sshd/ {sub(/.*:/,"",$4); print $4; exit}')
+  OPEN+=("${ssh_port:-22}/tcp")
+  say "Настраиваю ufw: ${OPEN[*]}"
+  for o in "${OPEN[@]}"; do ufw allow "$o" >/dev/null; done
+  ufw --force enable >/dev/null || warn "ufw не включился (так бывает в контейнерах) – откройте порты у хостера вручную."
 }
 
 # ---------- сертификат ----------
@@ -415,7 +439,7 @@ setup_tls_cert() {
   elif [[ $PANEL_SSL == ip && -s /root/cert/ip/fullchain.pem ]]; then
     CERT=/root/cert/ip/fullchain.pem; KEY=/root/cert/ip/privkey.pem
   else
-    # Без Let's Encrypt — свой сертификат, а его отпечаток уходит в ссылки (pcs),
+    # Без Let's Encrypt – свой сертификат, а его отпечаток уходит в ссылки (pcs),
     # чтобы клиенты доверяли именно ему.
     CERT=/root/cert/self/fullchain.pem; KEY=/root/cert/self/privkey.pem
     if [[ ! -s $CERT ]]; then
@@ -438,7 +462,7 @@ tls_json() { # alpn(JSON-массив)
 
 # ---------- протоколы ----------
 
-# AmneziaWG — в отдельной подписке: приложения на Xray и sing-box (Happ, v2rayN, Karing,
+# AmneziaWG – в отдельной подписке: приложения на Xray и sing-box (Happ, v2rayN, Karing,
 # Hiddify) его не умеют и видят как обычный WireGuard, который не подключается.
 client_base() { # суффикс
   local sid=$SUBID
@@ -450,7 +474,7 @@ uuid() { cat /proc/sys/kernel/random/uuid; }
 rnd() { shuf -i "$1-$2" -n 1; }
 
 # add_inbound remark port proto(tcp|udp|both|inner) protocol settings stream
-# inner — подключение за nginx: слушает 127.0.0.1, наружу порт не открываем.
+# inner – подключение за nginx: слушает 127.0.0.1, наружу порт не открываем.
 add_inbound() {
   local remark=$1 port=$2 net=$3 protocol=$4 settings=$5 stream=$6 body listen=""
   [[ $net == inner ]] && listen=127.0.0.1
@@ -473,7 +497,7 @@ add_inbound() {
   local out
   out=$(curl -sSk -m 20 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X POST -d "$body" "$API/inbounds/add")
   if [[ $(jq -r '.success' <<<"$out") != true ]] && grep -q 'Duplicate email' <<<"$out"; then
-    # Клиент с таким именем остался от удалённого подключения — берём уникальное имя.
+    # Клиент с таким именем остался от удалённого подключения – берём уникальное имя.
     body=$(jq -c --arg sfx "-$(openssl rand -hex 2)" '.settings |= (fromjson | .clients[0].email += $sfx | tojson)' <<<"$body")
     out=$(curl -sSk -m 20 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X POST -d "$body" "$API/inbounds/add")
   fi
@@ -490,7 +514,7 @@ open_port() { # port net
 }
 
 # External Proxy 3X-UI: ссылки ведут на HOST:443, хотя подключение слушает localhost.
-# SNI — только для TLS через nginx: у REALITY своё имя сайта маскировки, его не трогаем.
+# SNI – только для TLS через nginx: у REALITY своё имя сайта маскировки, его не трогаем.
 ext_proxy() { # forceTls(same|tls) alpn(JSON)
   local sni=""
   [[ $HOST =~ ^[0-9.]+$ ]] || sni=$HOST
@@ -606,7 +630,7 @@ proto_wg() {
 }
 
 # AmneziaWG: классические параметры понимают Mihomo и роутеры Keenetic,
-# полный набор 3.1 — только приложения AmneziaVPN/AmneziaWG. Поэтому два подключения.
+# полный набор 3.1 – только приложения AmneziaVPN/AmneziaWG. Поэтому два подключения.
 awg_obfuscation() { # classic|full
   local jmin s1 s2
   jmin=$(rnd 40 89); s1=$(rnd 15 150); s2=$(rnd 15 150)
@@ -655,12 +679,12 @@ telegram_reachable() {
 proto_mtproto() {
   # MTProto бесполезен, если сам сервер не достаёт до Telegram (некоторые хостеры его блокируют).
   if ! telegram_reachable; then
-    warn "MTProto пропущен: с этого сервера недоступны серверы Telegram — прокси для Telegram здесь работать не будет."
+    warn "MTProto пропущен: с этого сервера недоступны серверы Telegram – прокси для Telegram здесь работать не будет."
     return
   fi
   local settings
   if [[ $SINGLE == yes ]]; then
-    # FakeTLS-домен — свой сайт: nginx узнаёт MTProto по нему и передаёт mtg с реальным IP клиента.
+    # FakeTLS-домен – свой сайт: nginx узнаёт MTProto по нему и передаёт mtg с реальным IP клиента.
     settings=$(jq -nc --arg d "$SNI3" --argjson c "$(client_base mtproto)" '{fakeTlsDomain: $d, proxyProtocolListener: true, clients: [$c + {secret: ""}]}')
     add_inbound "MTProto" "${INNER[mtproto]}" inner mtproto "$settings" '{}'
   else
@@ -684,7 +708,7 @@ ensure_user() {
     [[ $missing == "[]" ]] || api POST "clients/$NAME/attach" "$(jq -nc --argjson i "$missing" '{inboundIds: $i}')" >/dev/null
     awg_attach "$NAME" "$SUBID"
   elif [[ -n $legacy ]]; then
-    # Установка до kit 1.1: у каждого протокола свой клиент — оставляем как есть.
+    # Установка до kit 1.1: у каждого протокола свой клиент – оставляем как есть.
     SUBID=$legacy
   else
     SUBID=$(rand_str 16 | tr 'A-Z' 'a-z')
@@ -697,7 +721,7 @@ ensure_user() {
 # В 3X-UI 3.x у клиента одна запись и в ней одна пара ключей WireGuard и один адрес. Если
 # клиент подключён к двум AmneziaWG, в подписку для обоих уходят ключ и адрес одного из них,
 # и второй сервер клиента не узнаёт (проверено 2026-09-27). Поэтому к первому AmneziaWG
-# подключаем основную запись, а ко второму — запись-«двойник» «имя-awg» с подпиской «<id>-awg»
+# подключаем основную запись, а ко второму – запись-«двойник» «имя-awg» с подпиской «<id>-awg»
 # (subId в 3X-UI обязан быть уникальным) и теми же лимитами; kit-sub подмешивает её в Clash.
 awg_ids() { api GET inbounds/list | jq -r '[.[] | select(.protocol == "amneziawg") | .id] | sort | .[]'; }
 non_awg_ids() { api GET inbounds/list | jq -c '[.[] | select(.protocol != "amneziawg") | .id]'; }
@@ -735,6 +759,10 @@ install_kit_cli() {
     printf 'MTPROTO_INNER=%q\n' "${INNER[mtproto]}"
   } >/etc/kit/kit.env
   chmod 600 /etc/kit/kit.env
+  install_kit_file
+}
+
+install_kit_file() {
   local d src=""
   d=$(dirname "${BASH_SOURCE[0]}")
   [[ -f $d/kit.sh && ${BASH_SOURCE[0]} != /dev/fd/* ]] && src=$d/kit.sh
@@ -745,7 +773,7 @@ install_kit_cli() {
 
 KIT_INSTALL_CMD="bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh)"
 
-# После «x-ui → Uninstall» меню подсказывает команду официального установщика —
+# После «x-ui → Uninstall» меню подсказывает команду официального установщика –
 # меняем её на нашу. Только в echo: вызов установщика в «Update» не трогаем.
 # Правим один раз при установке, без cron: чужие файлы по расписанию не трогаем.
 brand_xui_menu() {
@@ -760,13 +788,48 @@ brand_xui_menu() {
 
 # ---------- всё на 443: nginx ----------
 
+# Сайт-заглушка: на случайный заход по 443 сервер показывает обычный сайт. Шаблон выбирается
+# случайно из набора, чтобы тысячи серверов 3X-UI KIT не выглядели одинаково. Всё внутри
+# скрипта, со сторонних сайтов ничего не скачивается.
+stub_site() {
+  local n year
+  n=$(rnd 1 6); year=$(date +%Y)
+  case $n in
+    1) cat <<'HTML'
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f7f9;color:#1f2328}main{text-align:center;padding:24px}h1{font-weight:600;font-size:28px}p{color:#57606a}</style></head><body><main><h1>Site is under construction</h1><p>Please check back soon.</p></main></body></html>
+HTML
+    ;;
+    2) cat <<'HTML'
+<!DOCTYPE html><html><head><title>Welcome to nginx!</title><style>html{color-scheme:light dark}body{width:35em;margin:0 auto;font-family:Tahoma,Verdana,Arial,sans-serif}</style></head><body><h1>Welcome to nginx!</h1><p>If you see this page, the nginx web server is successfully installed and working. Further configuration is required.</p><p>For online documentation and support please refer to <a href="http://nginx.org/">nginx.org</a>.<br/>Commercial support is available at <a href="http://nginx.com/">nginx.com</a>.</p><p><em>Thank you for using nginx.</em></p></body></html>
+HTML
+    ;;
+    3) cat <<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lena Hart Photography</title><style>body{margin:0;font-family:Georgia,serif;background:#111;color:#eee}header{padding:48px 24px 16px;text-align:center}h1{font-weight:400;letter-spacing:.2em;text-transform:uppercase;font-size:22px}p{color:#aaa}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;padding:24px}.g div{aspect-ratio:4/3;background:linear-gradient(135deg,#2b2b2b,#444)}footer{text-align:center;color:#666;padding:24px;font-size:13px}</style></head><body><header><h1>Lena Hart</h1><p>Landscape &amp; travel photography</p></header><section class="g"><div></div><div></div><div></div><div></div><div></div><div></div></section><footer>&copy; $year Lena Hart. New portfolio coming soon.</footer></body></html>
+HTML
+    ;;
+    4) cat <<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notes</title><style>body{max-width:640px;margin:0 auto;padding:40px 20px;font:16px/1.6 ui-monospace,Menlo,Consolas,monospace;color:#222;background:#fdfdf8}h1{font-size:20px}a{color:#0645ad}li{margin:6px 0}small{color:#888}</style></head><body><h1>~/notes</h1><p>Small notes about Linux, networks and home servers.</p><ul><li><a href="#">Setting up a home NAS with ZFS</a> <small>$year-03-14</small></li><li><a href="#">Notes on systemd timers</a> <small>$year-02-02</small></li><li><a href="#">Why I moved my blog to a static site</a> <small>$year-01-09</small></li></ul><p><small>Comments are closed.</small></p></body></html>
+HTML
+    ;;
+    5) cat <<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Green Bean Coffee</title><style>body{margin:0;font-family:Helvetica,Arial,sans-serif;background:#f4efe6;color:#3b2f24;text-align:center}main{padding:72px 20px}h1{font-size:40px;margin:0 0 8px}p{font-size:18px}.b{display:inline-block;margin-top:16px;padding:10px 22px;border:2px solid #3b2f24;border-radius:24px}small{display:block;margin-top:48px;color:#8a7a68}</style></head><body><main><h1>Green Bean Coffee</h1><p>Specialty coffee &middot; fresh pastries &middot; open daily 8&ndash;18</p><span class="b">Online orders coming soon</span><small>&copy; $year Green Bean Coffee</small></main></body></html>
+HTML
+    ;;
+    6) cat <<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status</title><style>body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#fff;color:#24292f}main{max-width:560px;margin:64px auto;padding:0 20px}h1{font-size:22px}.r{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eaeef2}.ok{color:#1a7f37}small{color:#8c959f}</style></head><body><main><h1>System status</h1><div class="r"><span>Website</span><span class="ok">Operational</span></div><div class="r"><span>API</span><span class="ok">Operational</span></div><div class="r"><span>Storage</span><span class="ok">Operational</span></div><p><small>Updated automatically &middot; $year</small></p></main></body></html>
+HTML
+    ;;
+  esac
+}
+
+
 setup_nginx() {
   say "Настраиваю nginx: всё TCP через порт 443"
   apt-get install -y -qq nginx libnginx-mod-stream >/dev/null
-  # Порт 80 нужен Let's Encrypt для продления сертификата — сайт nginx по умолчанию убираем.
+  # Порт 80 нужен Let's Encrypt для продления сертификата – сайт nginx по умолчанию убираем.
   rm -f /etc/nginx/sites-enabled/default
 
-  # Панель — только через nginx.
+  # Панель – только через nginx.
   local all
   all=$(api POST setting/all '{}')
   if [[ $(jq -r '.webListen' <<<"$all") != 127.0.0.1 ]]; then
@@ -776,11 +839,9 @@ setup_nginx() {
   fi
 
   install -d -m 755 /var/www/kit
-  [[ -f /var/www/kit/index.html ]] || cat >/var/www/kit/index.html <<'HTML'
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f7f9;color:#1f2328}main{text-align:center;padding:24px}h1{font-weight:600;font-size:28px}p{color:#57606a}</style></head><body><main><h1>Site is under construction</h1><p>Please check back soon.</p></main></body></html>
-HTML
+  [[ -f /var/www/kit/index.html ]] || stub_site >/var/www/kit/index.html
 
-  # Маршруты — из текущих подключений панели: сайты REALITY, пути WebSocket, сервисы gRPC.
+  # Маршруты – из текущих подключений панели: сайты REALITY, пути WebSocket, сервисы gRPC.
   local list reality_sni xhttp_sni mt_sni locs="" kind path port
   list=$(api GET inbounds/list)
   reality_sni=$(jq -r '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
@@ -817,7 +878,7 @@ HTML
   local panel_path=/${XUI_WEB_BASE_PATH#/}
   panel_path=${panel_path%/}/
   {
-    echo "# Сгенерировано 3x-ui.sh (3X-UI KIT) — перезаписывается при повторном запуске."
+    echo "# Сгенерировано 3x-ui.sh (3X-UI KIT) – перезаписывается при повторном запуске."
     echo "stream {"
     echo "    map \$ssl_preread_server_name \$kit_upstream {"
     [[ -n $reality_sni ]] && echo "        $reality_sni 127.0.0.1:${INNER[reality]};"
@@ -837,7 +898,7 @@ HTML
     echo "}"
   } >/etc/nginx/kit-stream.conf
   cat >/etc/nginx/conf.d/kit.conf <<NGX
-# Сгенерировано 3x-ui.sh (3X-UI KIT) — перезаписывается при повторном запуске.
+# Сгенерировано 3x-ui.sh (3X-UI KIT) – перезаписывается при повторном запуске.
 server {
     listen 127.0.0.1:${INNER[web]} ssl http2 proxy_protocol;
     server_name _;
@@ -873,10 +934,10 @@ $locs
 }
 NGX
   grep -q 'kit-stream.conf' /etc/nginx/nginx.conf || echo 'include /etc/nginx/kit-stream.conf;' >>/etc/nginx/nginx.conf
-  nginx -t >/tmp/nginx-test.log 2>&1 || { cat /tmp/nginx-test.log >&2; die "nginx не принял конфиг — лог выше."; }
+  nginx -t >/tmp/nginx-test.log 2>&1 || { cat /tmp/nginx-test.log >&2; die "nginx не принял конфиг – лог выше."; }
   systemctl enable nginx >/dev/null 2>&1
   systemctl restart nginx
-  # Let's Encrypt на IP продлевается каждые несколько дней — nginx раз в сутки перечитывает сертификат.
+  # Let's Encrypt на IP продлевается каждые несколько дней – nginx раз в сутки перечитывает сертификат.
   echo '17 4 * * * root systemctl reload nginx >/dev/null 2>&1' >/etc/cron.d/kit-nginx-reload
   OPEN+=("443/tcp")
   local i
@@ -892,7 +953,7 @@ setup_subscription() {
   SUB_PATH=$(jq -r '.subPath // "/sub/"' <<<"$all")
   if [[ $SUB_PATH == /sub/ || -z $SUB_PATH ]]; then SUB_PATH="/$(rand_str 12 | tr 'A-Z' 'a-z')/"; fi
   if [[ $TRUSTED == yes ]]; then
-    # Наружу смотрит kit-sub (подписка с учётом приложения), 3X-UI — только на 127.0.0.1.
+    # Наружу смотрит kit-sub (подписка с учётом приложения), 3X-UI – только на 127.0.0.1.
     SUB_PORT=2096; SUB_INTERNAL=2097
     # Без subURI панель показывает ссылку на внутренний порт 2097, до которого снаружи не достучаться.
     local uri="https://$HOST:$SUB_PORT$SUB_PATH"
@@ -958,9 +1019,8 @@ UNIT
 
 KIT_SUB_URL="$KIT_RAW/scripts/kit-sub.py"
 
-install_kit_sub() {
-  say "Ставлю подписку с учётом приложения (kit-sub)"
-  apt-get install -y -qq python3 python3-yaml >/dev/null
+# Сам kit_sub.py: рядом со скриптом (запуск из папки scripts/) или из того же релиза.
+install_kit_sub_file() {
   install -d -m 755 /usr/local/lib/kit-sub /etc/kit-sub
   local src=${KIT_SUB_SRC:-}
   if [[ -z $src ]]; then
@@ -970,6 +1030,12 @@ install_kit_sub() {
   if [[ -n $src ]]; then install -m 644 "$src" /usr/local/lib/kit-sub/kit_sub.py
   else curl -fsSL --retry 3 -o /usr/local/lib/kit-sub/kit_sub.py "$KIT_SUB_URL"; fi
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" /usr/local/lib/kit-sub/kit_sub.py || die "kit-sub скачался повреждённым"
+}
+
+install_kit_sub() {
+  say "Ставлю подписку с учётом приложения (kit-sub)"
+  apt-get install -y -qq python3 python3-yaml >/dev/null
+  install_kit_sub_file
   if [[ $SINGLE == yes ]]; then
     # За nginx: слушаем только localhost, TLS снимает nginx на 443.
     jq -n --arg path "$SUB_PATH" --argjson port "${INNER[sub]}" --arg up "http://127.0.0.1:$SUB_INTERNAL" --arg host "$HOST" \
@@ -994,40 +1060,231 @@ install_kit_sub() {
   [[ $SINGLE == yes ]] && kp=${INNER[sub]}
   for i in $(seq 1 20); do port_busy "$kp" tcp && return 0; sleep 1; done
   journalctl -u kit-sub -n 20 --no-pager >&2 || true
-  die "kit-sub не запустился — лог выше."
+  die "kit-sub не запустился – лог выше."
 }
 
-# Ссылки пользователя — из его же подписки (её собирает сама 3X-UI).
-# Ссылки пользователя — прямо из подписки 3X-UI внутри сервера (мимо kit-sub, который
+# Ссылки пользователя – из его же подписки (её собирает сама 3X-UI).
+# Ссылки пользователя – прямо из подписки 3X-UI внутри сервера (мимо kit-sub, который
 # прячет от VPN-приложений vpn:// и tg://). sub_links subId [попыток]
 sub_links() {
   local id=$1 tries=${2:-20} raw="" i port=${SUB_INTERNAL:-$SUB_PORT} scheme=http
   [[ -z ${SUB_INTERNAL:-} && $TRUSTED == yes ]] && scheme=https
   for i in $(seq 1 "$tries"); do
-    # Настоящий адрес в Host — 3X-UI подставит его в ссылки.
+    # Настоящий адрес в Host – 3X-UI подставит его в ссылки.
     raw=$(curl -fsSk -m 10 -A "v2rayN/7.0" -H "Host: $HOST:$SUB_PORT" "$scheme://127.0.0.1:$port$SUB_PATH$id" 2>/dev/null) && [[ -n $raw ]] && break
     raw=""; sleep 2
   done
   if grep -q '://' <<<"$raw"; then echo "$raw"; else base64 -d <<<"$raw" 2>/dev/null || true; fi
 }
 
+# ---------- восстановление из резервной копии (kit backup) ----------
+
+# Файл настроек из копии можно подключать, только если в нём нет ничего, кроме
+# ИМЯ=значение без подстановок и команд.
+safe_env() {
+  [[ -r $1 ]] || die "В копии нет файла ${1##*/}."
+  grep -qvE "^([A-Z][A-Z0-9_]*=([A-Za-z0-9._:/@%+,=-]*|'[^']*'))?$" "$1" && die "В копии подозрительный файл ${1##*/} – не восстанавливаю."
+  return 0
+}
+
+# Меняет старый IP на новый в базе панели и файлах kit (только целиком, 1.2.3.4 не заденет 11.2.3.45).
+replace_host() { # старый новый файлы...
+  python3 - "$@" <<'PY'
+import re, sqlite3, sys
+old, new, files = sys.argv[1], sys.argv[2], sys.argv[3:]
+rx = re.compile(r"(?<![0-9.])" + re.escape(old) + r"(?![0-9])")
+sub = lambda v: rx.sub(new, v) if isinstance(v, str) else v
+db = sqlite3.connect("/etc/x-ui/x-ui.db")
+db.create_function("kit_sub", 1, sub)
+for table, cols in (("inbounds", ("settings", "stream_settings")), ("settings", ("value",))):
+    for c in cols:
+        db.execute("UPDATE %s SET %s = kit_sub(%s)" % (table, c, c))
+db.commit(); db.close()
+for f in files:
+    s = open(f).read()
+    open(f, "w").write(rx.sub(new, s))
+PY
+}
+
+restore_main() { # файл
+  local file=$1 tmp old_ip=""
+  [[ -f $file ]] || die "Нет файла $file. Сначала скопируйте копию на этот сервер: scp kit-backup-….tar.gz root@IP:"
+  [[ -d /usr/local/x-ui ]] && die "Восстанавливать можно только на чистый сервер, а здесь уже стоит 3X-UI."
+  port_busy 443 tcp && die "Порт 443/tcp занят. Восстанавливать нужно на чистый VPS."
+
+  say "Ставлю пакеты: curl, jq, openssl, qrencode, ufw, python3"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron python3 python3-yaml >/dev/null
+
+  # Сначала проверяем архив целиком: только наши пути, только файлы и папки, без ссылок
+  # и «../». Чужой архив не должен ничего записать мимо.
+  tmp=$(mktemp -d)
+  # shellcheck disable=SC2064 # путь подставляем сразу: при выходе локальной переменной уже нет
+  trap "rm -rf -- '$tmp'" EXIT
+  python3 - "$file" "$tmp" <<'PY' || die "Это не резервная копия 3X-UI KIT или она повреждена. Ничего не менял."
+import os, sys, tarfile
+allowed = ("etc/x-ui/x-ui.db", "etc/x-ui/install-result.env", "etc/kit/kit.env", "etc/kit-sub/config.json",
+           "etc/nginx/kit-stream.conf", "etc/nginx/conf.d/kit.conf", "var/www/kit", "root/cert/self",
+           "root/cert/custom", "root/3x-ui.txt", "kit-backup.env")
+parents = {"etc", "etc/x-ui", "etc/kit", "etc/kit-sub", "etc/nginx", "etc/nginx/conf.d", "var", "var/www", "root", "root/cert"}
+with tarfile.open(sys.argv[1], "r:gz") as t:
+    ms = []
+    for m in t.getmembers():
+        n = os.path.normpath(m.name)
+        if n == ".":
+            continue
+        if n.startswith("/") or ".." in n.split("/"):
+            sys.exit("путь " + m.name)
+        if not (m.isfile() or m.isdir()):
+            sys.exit("не файл " + m.name)
+        if not (n in parents and m.isdir()) and not any(n == a or n.startswith(a + "/") for a in allowed):
+            sys.exit("лишний " + m.name)
+        m.name = n
+        m.uid = m.gid = 0
+        m.uname = m.gname = "root"
+        m.mode = 0o700 if m.isdir() else 0o600
+        ms.append(m)
+    names = {m.name for m in ms}
+    for need in ("etc/x-ui/x-ui.db", "etc/x-ui/install-result.env", "kit-backup.env"):
+        if need not in names:
+            sys.exit("нет " + need)
+    if hasattr(tarfile, "data_filter"):
+        t.extractall(sys.argv[2], members=ms, filter="data")
+    else:
+        t.extractall(sys.argv[2], members=ms)
+PY
+  local f
+  for f in "$tmp/kit-backup.env" "$tmp/etc/x-ui/install-result.env" "$tmp/etc/kit/kit.env"; do if [[ -f $f ]]; then safe_env "$f"; fi; done
+  python3 -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'; c.execute('SELECT count(*) FROM inbounds')" \
+    "$tmp/etc/x-ui/x-ui.db" 2>/dev/null || die "База панели в копии повреждена. Ничего не менял."
+
+  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION=""
+  # shellcheck disable=SC1090
+  . "$tmp/kit-backup.env"
+  [[ $BACKUP_SSL =~ ^(ip|custom|none)$ ]] || die "В копии нет данных о сертификате."
+  PANEL_SSL=$BACKUP_SSL
+  # Домен переезжает вместе с сервером (поменяйте A-запись), IP – нет.
+  if [[ $BACKUP_HOST =~ ^[0-9.]+$ ]]; then
+    HOST=${HOST:-$(public_ip)}
+    [[ -n $HOST ]] || die "Не удалось узнать внешний IP. Укажите его: --host 1.2.3.4"
+    [[ $HOST != "$BACKUP_HOST" ]] && old_ip=$BACKUP_HOST
+  else
+    HOST=$BACKUP_HOST
+  fi
+  [[ $PANEL_SSL == ip ]] && port_busy 80 tcp && die "Для сертификата панели нужен свободный порт 80/tcp."
+  # Конфиги nginx и kit-sub из архива не берём, а собираем заново: из копии – только
+  # проверенные значения (путь подписки, порты, режим).
+  SINGLE=no; SUB_PATH=""; SUB_INTERNAL=""; SUB_PORT=""
+  if [[ -f $tmp/etc/kit/kit.env ]]; then
+    SINGLE=$(. "$tmp/etc/kit/kit.env"; echo "${SINGLE:-no}")
+    SUB_PATH=$(. "$tmp/etc/kit/kit.env"; echo "${SUB_PATH:-}")
+    SUB_INTERNAL=$(. "$tmp/etc/kit/kit.env"; echo "${SUB_INTERNAL:-}")
+    [[ $SINGLE =~ ^(yes|no)$ && $SUB_PATH =~ ^/[A-Za-z0-9_-]+/$ && $SUB_INTERNAL =~ ^[0-9]{1,5}$ ]] \
+      || die "В копии странные настройки kit (kit.env) – не восстанавливаю."
+  fi
+  if [[ -f $tmp/etc/kit-sub/config.json ]]; then
+    SUB_PORT=$(jq -r '.port' "$tmp/etc/kit-sub/config.json" 2>/dev/null || true)
+    [[ $SUB_PORT =~ ^[0-9]{1,5}$ && -n $SUB_PATH ]] || die "В копии странные настройки подписки – не восстанавливаю."
+  fi
+  say "Копия от ${BACKUP_DATE:-?} (kit ${BACKUP_KIT_VERSION:-?}), сервер ${B}$HOST${N}"
+
+  # 3X-UI той же закреплённой версии, потом подменяем её базу на базу из копии:
+  # подключения, ключи REALITY, пользователи и их подписки остаются прежними.
+  install_xui "$(free_port)" "$(rand_str 18)" "$(rand_str 10)" "$(rand_str 20)"
+  systemctl stop x-ui
+  install -m 600 "$tmp/etc/x-ui/x-ui.db" /etc/x-ui/x-ui.db
+  install -m 600 "$tmp/etc/x-ui/install-result.env" "$XUI_ENV"
+  local c
+  for c in self custom; do
+    [[ -d $tmp/root/cert/$c ]] || continue
+    install -d -m 700 "/root/cert/$c"
+    install -m 644 "$tmp/root/cert/$c/fullchain.pem" "/root/cert/$c/fullchain.pem"
+    install -m 600 "$tmp/root/cert/$c/privkey.pem" "/root/cert/$c/privkey.pem"
+  done
+  install -d -m 700 /etc/kit /etc/kit-sub
+  [[ -f $tmp/etc/kit/kit.env ]] && install -m 600 "$tmp/etc/kit/kit.env" /etc/kit/kit.env
+  [[ -f $tmp/root/3x-ui.txt ]] && install -m 600 "$tmp/root/3x-ui.txt" "$RESULT"
+  if [[ -n $old_ip ]]; then
+    say "Меняю адрес сервера в подключениях: $old_ip → $HOST"
+    local files=()
+    for f in "$XUI_ENV" /etc/kit/kit.env "$RESULT"; do if [[ -f $f ]]; then files+=("$f"); fi; done
+    replace_host "$old_ip" "$HOST" "${files[@]}"
+  fi
+  systemctl start x-ui
+  connect_panel
+  set_xray_core
+
+  # Сертификат: Let's Encrypt на новый IP выпустил установщик, свой и самоподписанный – из копии.
+  setup_tls_cert
+  TRUSTED=no
+  [[ $PANEL_SSL == ip || $PANEL_SSL == custom ]] && TRUSTED=yes
+  if [[ -n $SUB_PORT ]]; then
+    install_kit_sub
+    [[ $SINGLE == yes ]] || OPEN+=("$SUB_PORT/tcp")
+  fi
+  # Всё на 443: nginx строит маршруты по подключениям из базы, заглушка – из копии.
+  if [[ $SINGLE == yes ]]; then
+    install -d -m 755 /var/www/kit
+    [[ -f $tmp/var/www/kit/index.html ]] && install -m 644 "$tmp/var/www/kit/index.html" /var/www/kit/index.html
+    setup_nginx
+  fi
+
+  if [[ -f /etc/kit/kit.env ]]; then
+    install_kit_file
+    brand_xui_menu
+    /usr/local/bin/kit update --auto >/dev/null 2>&1 || warn "Автообновление не включилось – включите позже: kit update --auto"
+  fi
+
+  # Порты – по подключениям из копии: что слушает не только localhost, то и открываем.
+  if [[ $UFW == yes ]]; then
+    local p
+    while read -r p; do OPEN+=("$p"); done < <(api GET inbounds/list | jq -r '.[] | select(.listen != "127.0.0.1")
+      | if (.protocol | test("^(hysteria|hysteria2|tuic|wireguard|amneziawg)$")) then "\(.port)/udp"
+        elif .protocol == "shadowsocks" then "\(.port)/tcp", "\(.port)/udp" else "\(.port)/tcp" end')
+    [[ $TRUSTED == yes && $SINGLE == no ]] && OPEN+=("$XUI_PANEL_PORT/tcp")
+    [[ $PANEL_SSL == ip ]] && OPEN+=("80/tcp")
+    setup_ufw
+  fi
+
+  local n_in n_cl
+  n_in=$(api GET inbounds/list | jq length)
+  n_cl=$(api GET inbounds/list | jq '[.[] | (.settings | if type == "string" then fromjson else . end).clients // [] | .[].email] | unique | length')
+  kit_banner
+  echo
+  echo "${G}${B}Готово! Сервер восстановлен из копии: $n_in подключений, $n_cl клиентских записей.${N}"
+  echo "Логин и пароль панели прежние, адрес панели и подписки: ${B}cat $RESULT${N}"
+  echo
+  if [[ -n $old_ip ]]; then
+    warn "IP сервера сменился: $old_ip → $HOST."
+    echo "Старые подписки указывают на старый IP, поэтому клиентам нужно один раз добавить"
+    echo "подписку заново: ${B}kit user list${N}, затем ${B}kit user link имя${N}."
+    echo "${D}Чтобы в следующий раз переезд прошёл незаметно для клиентов, ставьте сервер на домен (--cert, --key, --host).${N}"
+  else
+    echo "Клиентам ничего менять не нужно: ключи, ссылки и подписки те же."
+  fi
+  [[ $PANEL_SSL == custom ]] && echo "Направьте A-запись домена ${B}$HOST${N} на IP этого сервера, если ещё не сделали."
+  return 0
+}
+
 usage() {
   cat <<EOF
 3X-UI со всеми протоколами одной командой
 
-  --protocols all     all (по умолчанию — всё, кроме WireGuard), minimal (только REALITY)
+  --protocols all     all (по умолчанию – всё, кроме WireGuard), minimal (только REALITY)
                       или список через запятую: reality,hy2,xhttp,ws,trojan,vmess,ss,tuic,wg,awg,awg3,mtproto
-                      (обычный WireGuard в России блокируется — включайте его, только если сервер и
+                      (обычный WireGuard в России блокируется – включайте его, только если сервер и
                       пользователи за границей)
   --port 443          порт REALITY (TCP) и Hysteria2 (UDP), по умолчанию 443
   --sni сайт          сайт для маскировки (по умолчанию подбирается сам)
-  --panel-ssl ip|none сертификат панели: ip — Let's Encrypt на IP (нужен порт 80),
-                      none — панель только через SSH-туннель (по умолчанию выбирается сам)
+  --panel-ssl ip|none сертификат панели: ip – Let's Encrypt на IP (нужен порт 80),
+                      none – панель только через SSH-туннель (по умолчанию выбирается сам)
   --cert файл --key файл  свой сертификат (например, для домена) вместо Let's Encrypt на IP;
-                      тогда --host — это домен из сертификата
+                      тогда --host – это домен из сертификата
   --user admin        имя первого клиента
   --host 1.2.3.4      адрес в ссылке, если IP определился неверно
   --no-ufw            не трогать файрвол
+  --restore файл      поднять сервер из резервной копии kit backup (на чистом VPS)
   -y                  не задавать вопросов
 EOF
 }
