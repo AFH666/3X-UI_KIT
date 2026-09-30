@@ -963,8 +963,15 @@ setup_nginx() {
   reality_sni=$(jq -r '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   xhttp_sni=$(jq -r '.[] | select(.remark == "XHTTP" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   mt_sni=$(jq -r '.[] | select(.protocol == "mtproto" and .listen == "127.0.0.1") | (.settings | if type == "string" then fromjson else . end).fakeTlsDomain' <<<"$list")
+  # Всё из базы панели попадает в конфиг nginx, поэтому чужая база (например, из копии)
+  # не должна протащить туда лишние директивы: имена и пути проверяем строго.
+  local n
+  for n in "$reality_sni" "$xhttp_sni" "$mt_sni"; do
+    [[ -z $n || $n =~ ^[A-Za-z0-9.-]+$ ]] || die "В подключениях странное имя сайта маскировки – не трогаю nginx."
+  done
   while IFS=$'\t' read -r kind path port; do
     [[ -n $path ]] || continue
+    [[ $port =~ ^[0-9]{1,5}$ && $path =~ ^/?[A-Za-z0-9._~/-]+$ ]] || die "В подключениях странный путь ($kind) – не трогаю nginx."
     if [[ $kind == ws ]]; then
       locs+="
     location = $path {
