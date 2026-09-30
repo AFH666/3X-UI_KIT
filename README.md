@@ -52,6 +52,26 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 ```
 
 Через пару минут скрипт покажет адрес панели, логин, пароль и подписку с QR-кодом.
+
+<details>
+<summary>🔍 Хотите сначала посмотреть скрипт? Установка с проверкой</summary>
+
+Скачайте скрипт конкретной версии, прочитайте его и сверьте SHA256 с тем, что указан
+на странице [релиза](https://github.com/itsnotkubrick/3X-UI_KIT/releases/latest):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/scripts/3x-ui.sh
+less 3x-ui.sh
+sha256sum 3x-ui.sh
+bash 3x-ui.sh
+```
+
+Скрипт версии 1.1 скачивает свои части (`kit`, `kit-sub`) из того же релиза, а установщик
+3X-UI сверяет по SHA256 и не запускает, если он изменился. Первый раз удобнее ставить на
+свежий VPS без ваших данных.
+
+</details>
+
 Подробно — подключение приложений, дополнительные пользователи и параметры —
 в **[инструкции](manuals/3x-ui.md)**. Нужен только Hysteria2 — есть
 [отдельный скрипт](manuals/hysteria2.md).

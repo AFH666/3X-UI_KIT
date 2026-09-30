@@ -12,7 +12,16 @@ set -Eeuo pipefail
 
 HY_VERSION="2.12.3"
 HY_REPO="HyNetworks/hysteria"
-SELF_URL="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/hysteria2.sh"
+# SHA256 бинарников этой версии, записанные в сам скрипт: проверка не зависит от файла
+# hashes.txt, который лежит там же, где бинарник (2026-09-30, hashes.txt релиза app/v2.12.3).
+declare -A HY_SHA256=(
+  [amd64]=8c7a68a906998b747a0db87586e364f995fbfddb95693ae6e2fdb68a6e920d3e
+  [arm64]=c8dc653c3ba0a28d29a26b8fa52d2086f27c0927afddce95c09965e7174e78b0
+)
+KIT_VERSION="1.1"
+KIT_REPO_RAW="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT"
+# Скрипт берём из тега релиза, а не из меняющейся ветки main.
+SELF_URL="$KIT_REPO_RAW/v$KIT_VERSION/scripts/hysteria2.sh"
 
 BIN=/usr/local/bin/hysteria
 CLI=/usr/local/bin/hy2
@@ -94,8 +103,7 @@ install_binary() {
   tmp=$(mktemp -d)
   say "Скачиваю Hysteria $HY_VERSION ($arch) с GitHub"
   curl -fsSL --retry 3 -o "$tmp/hysteria" "$url/hysteria-linux-$arch"
-  curl -fsSL --retry 3 -o "$tmp/hashes.txt" "$url/hashes.txt"
-  expected=$(awk -v f="build/hysteria-linux-$arch" '$2==f {print $1}' "$tmp/hashes.txt")
+  expected=${HY_SHA256[$arch]:-}
   actual=$(sha256sum "$tmp/hysteria" | awk '{print $1}')
   [[ -n $expected && $expected == "$actual" ]] || { rm -rf "$tmp"; die "Контрольная сумма не совпала — файл повреждён или подменён."; }
   install -m 755 "$tmp/hysteria" "$BIN"
@@ -277,10 +285,14 @@ cmd_install() {
     read -rp "Домен (Enter — без домена): " DOMAIN
     if [[ -n $DOMAIN ]]; then read -rp "Почта для Let's Encrypt: " EMAIL; fi
   fi
+  # Значения попадают в install.env и конфиг Hysteria — пропускаем только допустимые символы.
+  local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   if [[ -n $DOMAIN ]]; then
-    [[ $DOMAIN =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || die "Похоже, это не домен: $DOMAIN"
-    [[ $EMAIL == *@*.* ]] || die "Для Let's Encrypt нужна почта: --email you@example.com"
+    [[ $DOMAIN =~ $re_host ]] || die "Похоже, это не домен: $DOMAIN"
+    [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,63}$ ]] || die "Для Let's Encrypt нужна почта: --email you@example.com"
   fi
+  [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например www.bing.com"
+  [[ -z $HOST || $HOST =~ $re_host || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host: нужен IP или домен"
   [[ $PORT =~ ^[0-9]+$ ]] && ((PORT > 0 && PORT < 65536)) || die "Неверный порт: $PORT"
   [[ $USERNAME =~ ^[A-Za-z0-9_.-]{1,32}$ ]] || die "Имя пользователя: латиница, цифры, _ . - (до 32 символов)."
 
@@ -310,14 +322,15 @@ cmd_install() {
   write_masq
   [[ -z $DOMAIN ]] && make_self_signed "$SNI"
 
-  cat >"$STATE" <<EOF
-DOMAIN=$DOMAIN
-EMAIL=$EMAIL
-PORT=$PORT
-HOST=$HOST
-SNI=$SNI
-UFW=$UFW
-EOF
+  # printf %q: файл потом читается через source, значения не должны превратиться в команды.
+  {
+    printf 'DOMAIN=%q\n' "$DOMAIN"
+    printf 'EMAIL=%q\n' "$EMAIL"
+    printf 'PORT=%q\n' "$PORT"
+    printf 'HOST=%q\n' "$HOST"
+    printf 'SNI=%q\n' "$SNI"
+    printf 'UFW=%q\n' "$UFW"
+  } >"$STATE"
   chmod 600 "$STATE"
   printf '%s %s\n' "$USERNAME" "$(rand 16)" >"$USERS"
   chmod 600 "$USERS"
@@ -424,9 +437,13 @@ cmd_status() {
 cmd_update() {
   require_installed
   local tmp
+  local latest
+  latest=$(curl -fsS -m 8 "$KIT_REPO_RAW/main/VERSION" | tr -d '[:space:]') || true
+  [[ $latest =~ ^[0-9]+(\.[0-9]+)+$ ]] || die "Не удалось узнать последнюю версию: GitHub недоступен с сервера."
   tmp=$(mktemp)
-  say "Скачиваю свежую версию скрипта"
-  curl -fsSL --retry 3 -o "$tmp" "$SELF_URL"
+  say "Скачиваю скрипт версии $latest"
+  curl -fsSL --retry 3 -o "$tmp" "$KIT_REPO_RAW/v$latest/scripts/hysteria2.sh"
+  bash -n "$tmp" || { rm -f "$tmp"; die "Скачанный скрипт повреждён – ничего не менял."; }
   bash "$tmp" __update_binary
   install -m 755 "$tmp" "$CLI"
   rm -f "$tmp"

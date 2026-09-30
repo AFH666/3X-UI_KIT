@@ -13,6 +13,11 @@
 set -Eeuo pipefail
 
 XUI_VERSION="v3.8.5"
+# SHA256 установщика 3X-UI этой версии: тег могут передвинуть, а хеш – нет (проверено 2026-09-30).
+XUI_INSTALL_SHA256="4e3fe7fe00ef8e904ce6a0e9c36fd8a0c7179fe5e786f23e31801aee84c6347d"
+KIT_VERSION="1.1"
+# kit и kit-sub берём из того же релиза, что и этот скрипт, а не из меняющейся ветки main.
+KIT_RAW="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$KIT_VERSION"
 # Ядро Xray для панели. С 26.7.x клиенты на Mihomo и sing-box (Hiddify, FlClash,
 # Clash Verge, Mihomo в XKeen) не проходят REALITY — проверено 2026-09-25.
 # 26.6.27 — последняя версия, с которой работают все клиенты и которую принимает 3X-UI.
@@ -128,7 +133,7 @@ main() {
     warn "Панель 3X-UI удалена, но остались файлы прошлой установки — убираю их."
     systemctl disable --now kit-sub >/dev/null 2>&1 || true
     rm -rf /etc/systemd/system/kit-sub.service /usr/local/lib/kit-sub /etc/kit-sub /etc/kit /usr/local/bin/kit \
-      /etc/cron.d/kit-nginx-reload /etc/cron.d/kit-xui-menu "$RESULT"
+      /etc/cron.d/kit-nginx-reload /etc/cron.d/kit-xui-menu /etc/cron.d/kit-sub-cert "$RESULT"
     systemctl daemon-reload
     # Наш nginx держит 443 — без этого проверка порта ниже не пустит REALITY.
     if [[ -f /etc/nginx/kit-stream.conf ]]; then
@@ -160,6 +165,9 @@ main() {
     esac
   done
   [[ $PORT =~ ^[0-9]+$ ]] && ((PORT > 0 && PORT < 65536)) || die "Неверный порт: $PORT"
+  local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
+  [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например dl.google.com"
+  [[ -z $HOST || $HOST =~ $re_host || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host: нужен IP или домен"
   [[ $NAME =~ ^[A-Za-z0-9_.-]{1,32}$ ]] || die "Имя: латиница, цифры, _ . - (до 32 символов)."
   [[ $PANEL_SSL =~ ^(auto|ip|none)$ ]] || die "--panel-ssl: auto, ip или none"
   if [[ -n $ucert || -n $ukey ]]; then
@@ -234,6 +242,8 @@ main() {
   tmp=$(mktemp)
   say "Ставлю 3X-UI $XUI_VERSION официальным установщиком (пара минут)"
   curl -fsSL --retry 3 -o "$tmp" "https://raw.githubusercontent.com/$XUI_REPO/$XUI_VERSION/install.sh"
+  [[ $(sha256sum "$tmp" | awk '{print $1}') == "$XUI_INSTALL_SHA256" ]] \
+    || die "Установщик 3X-UI $XUI_VERSION не совпал с проверенным (SHA256) – не запускаю. Сообщите нам: github.com/itsnotkubrick/3X-UI_KIT/issues"
   if ! XUI_NONINTERACTIVE=1 XUI_SSL_MODE="${PANEL_SSL/custom/none}" XUI_SERVER_IP="$HOST" \
       XUI_PANEL_PORT="$panel_port" XUI_WEB_BASE_PATH="$panel_path" \
       XUI_USERNAME="$panel_user" XUI_PASSWORD="$panel_pass" \
@@ -712,7 +722,7 @@ awg_attach() { # имя subId [лимит-байт] [срок-мс] [устро�
   done
 }
 
-KIT_CLI_URL="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/kit.sh"
+KIT_CLI_URL="$KIT_RAW/scripts/kit.sh"
 
 install_kit_cli() {
   install -d -m 700 /etc/kit
@@ -737,7 +747,7 @@ KIT_INSTALL_CMD="bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubri
 
 # После «x-ui → Uninstall» меню подсказывает команду официального установщика —
 # меняем её на нашу. Только в echo: вызов установщика в «Update» не трогаем.
-# Меню обновляется вместе с панелью, поэтому раз в сутки подсказку правит cron.
+# Правим один раз при установке, без cron: чужие файлы по расписанию не трогаем.
 brand_xui_menu() {
   printf '%s\n' '/echo.*mhsanaei\/3x-ui\/[a-z]*\/install\.sh/ s#bash <(curl -Ls https://raw\.githubusercontent\.com/mhsanaei/3x-ui/[a-z]*/install\.sh)#'"$KIT_INSTALL_CMD"'#' \
     >/etc/kit/xui-menu.sed
@@ -745,8 +755,7 @@ brand_xui_menu() {
   for f in /usr/bin/x-ui /usr/local/x-ui/x-ui.sh; do
     [[ -f $f ]] && sed -i -f /etc/kit/xui-menu.sed "$f"
   done
-  echo '23 4 * * * root for f in /usr/bin/x-ui /usr/local/x-ui/x-ui.sh; do [ -f "$f" ] && sed -i -f /etc/kit/xui-menu.sed "$f"; done' \
-    >/etc/cron.d/kit-xui-menu
+  rm -f /etc/cron.d/kit-xui-menu
 }
 
 # ---------- всё на 443: nginx ----------
@@ -910,7 +919,44 @@ setup_subscription() {
   SUB_FETCH="$(if [[ $TRUSTED == yes ]]; then echo https; else echo http; fi)://$HOST:$SUB_PORT$SUB_PATH$SUBID"
 }
 
-KIT_SUB_URL="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/kit-sub.py"
+# Юнит kit-sub: без root (DynamicUser), конфиг и сертификат – через LoadCredential.
+# Сертификат Let's Encrypt на IP продлевается раз в несколько дней, поэтому при отдельном
+# порте kit-sub перезапускается раз в сутки и берёт свежий.
+kit_sub_unit() { # путь-к-сертификату путь-к-ключу (пусто – за nginx)
+  cat <<UNIT
+[Unit]
+Description=kit-sub: подписка с учётом приложения (3X-UI KIT)
+After=network-online.target x-ui.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/kit-sub/kit_sub.py
+Restart=on-failure
+RestartSec=5
+DynamicUser=yes
+LoadCredential=config.json:/etc/kit-sub/config.json
+${1:+LoadCredential=cert.pem:$1}
+${2:+LoadCredential=key.pem:$2}
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=true
+PrivateDevices=true
+ProtectProc=invisible
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+}
+
+KIT_SUB_URL="$KIT_RAW/scripts/kit-sub.py"
 
 install_kit_sub() {
   say "Ставлю подписку с учётом приложения (kit-sub)"
@@ -934,29 +980,12 @@ install_kit_sub() {
       '{listen: "0.0.0.0", port: $port, path: $path, upstream: $up, cert: $cert, key: $key, host: $host}' >/etc/kit-sub/config.json
   fi
   chmod 600 /etc/kit-sub/config.json
-  cat >/etc/systemd/system/kit-sub.service <<'UNIT'
-[Unit]
-Description=kit-sub: подписка с учётом приложения (3X-UI KIT)
-After=network-online.target x-ui.service
-Wants=network-online.target
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/local/lib/kit-sub/kit_sub.py
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=read-only
-PrivateTmp=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-MemoryMax=64M
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+  if [[ $SINGLE == yes ]]; then
+    kit_sub_unit >/etc/systemd/system/kit-sub.service
+  else
+    kit_sub_unit "$CERT" "$KEY" >/etc/systemd/system/kit-sub.service
+    echo '19 4 * * * root systemctl restart kit-sub >/dev/null 2>&1' >/etc/cron.d/kit-sub-cert
+  fi
   systemctl daemon-reload
   systemctl enable kit-sub >/dev/null 2>&1
   systemctl restart kit-sub

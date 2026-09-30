@@ -27,7 +27,11 @@ import urllib.request
 
 import yaml
 
-CONFIG = os.environ.get("KIT_SUB_CONFIG", "/etc/kit-sub/config.json")
+# Под systemd kit-sub работает без root (DynamicUser): конфиг и сертификат ему передаёт
+# systemd через LoadCredential в $CREDENTIALS_DIRECTORY.
+CREDS = os.environ.get("CREDENTIALS_DIRECTORY", "")
+CONFIG = os.environ.get("KIT_SUB_CONFIG") or (
+    os.path.join(CREDS, "config.json") if CREDS and os.path.exists(os.path.join(CREDS, "config.json")) else "/etc/kit-sub/config.json")
 CLASH_UA = re.compile(r"clash|mihomo|flclash|stash|nyanpasu|meta", re.I)
 # AmneziaWG добавляем только приложениям на ядре Mihomo. Karing, Hiddify и другие на sing-box
 # тоже могут просить формат Clash (Karing так и делает), но AmneziaWG не умеют.
@@ -211,6 +215,8 @@ class Server(http.server.ThreadingHTTPServer):
 
 def main():
     cert, key = CONF.get("cert"), CONF.get("key")
+    if cert and CREDS and os.path.exists(os.path.join(CREDS, "cert.pem")):
+        cert, key = os.path.join(CREDS, "cert.pem"), os.path.join(CREDS, "key.pem")
     if not cert:
         srv = Server((CONF.get("listen", "127.0.0.1"), int(CONF["port"])), Handler)
         log(f"kit-sub слушает http://{CONF.get('listen', '127.0.0.1')}:{CONF['port']}{PATH} (TLS снимает nginx)")
