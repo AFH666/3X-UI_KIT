@@ -37,8 +37,11 @@ declare -A PORTS=([xhttp]=8443 [ws]=2053 [trojan]=2083 [vmess]=2087 [ss]=8388 [t
 PROTOS=(); CREATED=(); OPEN=()
 # Режим «всё TCP на 443»: nginx разводит по SNI и путям, подключения слушают только localhost.
 SINGLE=no
-declare -A INNER=([reality]=10443 [xhttp]=10444 [mtproto]=10445 [web]=10446 [ws]=10451 [vmess]=10452 [trojan]=10453 [sub]=10460)
+declare -A INNER=([reality]=10443 [xhttp]=10444 [mtproto]=10445 [web]=10446 [selfweb]=10447 [ws]=10451 [vmess]=10452 [trojan]=10453 [sub]=10460)
 SNI2=""; SNI3=""
+# Свой домен (self-steal): REALITY маскируется под сайт на этом же сервере, а не под чужой.
+DOMAIN=""
+DOMAIN_CERT_DIR=/root/cert/domain
 
 if [[ -t 1 ]]; then
   G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'
@@ -75,6 +78,97 @@ free_port() {
 sni_ok() {
   echo | timeout 8 openssl s_client -connect "$1:443" -servername "$1" -tls1_3 -alpn h2 2>/dev/null \
     | grep -q 'ALPN protocol: h2'
+}
+
+# ---------- свой домен (self-steal) ----------
+
+# Домен должен смотреть на этот сервер: иначе Let's Encrypt не выдаст сертификат,
+# а маскировка под чужой адрес ничего не даст.
+domain_points_here() { # домен
+  local me=$HOST ips
+  [[ $me =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || me=$(public_ip)
+  ips=$(getent ahostsv4 "$1" 2>/dev/null | awk '{print $1}' | sort -u)
+  if [[ -z $ips ]]; then
+    warn "У домена $1 нет A-записи. Добавьте её у регистратора: тип A, значение $me."
+  elif ! grep -qx "$me" <<<"$ips"; then
+    warn "Домен $1 сейчас указывает на $(tr '\n' ' ' <<<"$ips")– а нужен IP этого сервера: $me."
+    echo "   Если домен за Cloudflare, выключите проксирование (серое облако вместо оранжевого)." >&2
+  else
+    return 0
+  fi
+  return 1
+}
+
+ask_tty() { # приглашение; ответ – в REPLY
+  read -r -p "$1" REPLY </dev/tty || REPLY=""
+}
+
+# Вопрос пользователю: чужой сайт по умолчанию или свой домен. Без ответа – стандартный.
+choose_masking() {
+  echo
+  echo "${B}Под какой сайт маскировать сервер?${N}"
+  echo "Чтобы сервер не выделялся, он притворяется обычным сайтом. Имя этого сайта (SNI) видно"
+  echo "всем по пути, поэтому от выбора зависит, насколько трудно вас заметить."
+  echo
+  echo "  ${B}1)${N} Стандартный сайт ${D}(рекомендуем, если не уверены)${N}"
+  echo "     Сервер притворяется популярным сайтом (по умолчанию ${SNI_CANDIDATES[0]}). Ничего готовить"
+  echo "     не нужно, работает сразу. Минус: IP вашего сервера не принадлежит этому сайту,"
+  echo "     и при желании цензор может это заметить."
+  echo
+  echo "  ${B}2)${N} Свой домен ${D}(надёжнее)${N}"
+  echo "     Сервер притворяется вашим собственным сайтом: на нём настоящая страница и сертификат"
+  echo "     Let's Encrypt. Нужно заранее: свой домен, его A-запись на IP этого сервера и свободный"
+  echo "     порт 80. Сертификат установщик получит сам."
+  echo
+  local d="" prev=""
+  ask_tty "Ваш выбор [1]: "
+  [[ $REPLY == 2 ]] || { echo; return 0; }
+  while :; do
+    if [[ -n $prev ]]; then ask_tty "Ваш домен [$prev]: "
+    else ask_tty "Ваш домен, например vpn.example.com (пусто – стандартный сайт): "; fi
+    d=${REPLY,,}; d=${d// /}
+    [[ -n $d ]] || d=$prev
+    [[ -n $d ]] || return 0
+    if [[ ! $d =~ $re_host ]]; then warn "Это не похоже на домен. Пример: vpn.example.com"; prev=""; continue; fi
+    if domain_points_here "$d"; then DOMAIN=$d; return 0; fi
+    prev=$d
+    ask_tty "Enter – проверить ещё раз (DNS обновляется не сразу), s – стандартный сайт, q – выйти: "
+    case ${REPLY,,} in
+      s) return 0 ;;
+      q) die "Остановился по вашей просьбе. Ставить можно снова в любой момент." ;;
+    esac
+  done
+}
+
+# Сертификат для домена через acme.sh, который уже поставил установщик 3X-UI.
+# Продлевает его тот же cron, а после продления nginx перечитывает сертификат.
+issue_domain_cert() {
+  local acme=/root/.acme.sh/acme.sh rc=0 log=/var/log/kit-domain-cert.log
+  if [[ -s $DOMAIN_CERT_DIR/fullchain.pem && -s $DOMAIN_CERT_DIR/privkey.pem ]] \
+    && openssl x509 -in "$DOMAIN_CERT_DIR/fullchain.pem" -noout -checkhost "$DOMAIN" 2>/dev/null | grep -q 'does match' \
+    && openssl x509 -in "$DOMAIN_CERT_DIR/fullchain.pem" -noout -checkend 864000 >/dev/null 2>&1; then
+    say "Сертификат для ${B}$DOMAIN${N} уже есть"
+    return 0
+  fi
+  [[ -x $acme ]] || die "Не нашёл acme.sh, которым установщик 3X-UI получает сертификаты: не могу выпустить сертификат для $DOMAIN."
+  port_busy 80 tcp && die "Порт 80/tcp занят: Let's Encrypt не сможет проверить домен $DOMAIN."
+  say "Получаю сертификат Let's Encrypt для ${B}$DOMAIN${N}"
+  install -m 600 /dev/null "$log"
+  "$acme" --issue -d "$DOMAIN" --standalone --httpport 80 --server letsencrypt --keylength ec-256 >"$log" 2>&1 || rc=$?
+  # 2 – сертификат уже свежий, выпускать заново не нужно.
+  [[ $rc == 0 || $rc == 2 ]] || die "Let's Encrypt не выдал сертификат для $DOMAIN. Обычно дело в одном из трёх: A-запись ещё не обновилась, порт 80 закрыт у хостера или домен за проксированием Cloudflare. Лог: $log"
+  install -d -m 755 "$DOMAIN_CERT_DIR"
+  "$acme" --install-cert -d "$DOMAIN" --ecc --fullchain-file "$DOMAIN_CERT_DIR/fullchain.pem" \
+    --key-file "$DOMAIN_CERT_DIR/privkey.pem" --reloadcmd "systemctl reload nginx >/dev/null 2>&1 || true" >>"$log" 2>&1 \
+    || die "Не удалось сохранить сертификат для $DOMAIN. Лог: $log"
+  chmod 644 "$DOMAIN_CERT_DIR/fullchain.pem"
+  chmod 600 "$DOMAIN_CERT_DIR/privkey.pem"
+  return 0
+}
+
+# Куда REALITY отправляет чужих гостей: для своего домена – на nginx этого сервера.
+reality_target() { # сайт
+  if [[ -n $DOMAIN && $1 == "$DOMAIN" ]]; then echo "127.0.0.1:${INNER[selfweb]}"; else echo "$1:443"; fi
 }
 
 # ---------- API панели ----------
@@ -155,6 +249,7 @@ main() {
       --host) HOST=$2; shift 2 ;;
       --user) NAME=$2; shift 2 ;;
       --protocols) protos=$2; shift 2 ;;
+      --domain) DOMAIN=$2; shift 2 ;;
       --cert) ucert=$2; shift 2 ;;
       --multi-port) multi=yes; shift ;;
       --key) ukey=$2; shift 2 ;;
@@ -173,6 +268,9 @@ main() {
   fi
   local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например dl.google.com"
+  [[ -z $DOMAIN || $DOMAIN =~ $re_host ]] || die "--domain: нужно имя вашего домена, например vpn.example.com"
+  [[ -z $DOMAIN || -z $SNI ]] || die "--sni и --domain вместе не нужны: выберите либо чужой сайт (--sni), либо свой домен (--domain)."
+  [[ -z $DOMAIN || $multi == no ]] || die "Свой домен работает только в режиме «всё на 443» – уберите --multi-port."
   [[ -z $HOST || $HOST =~ $re_host || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host: нужен IP или домен"
   [[ $NAME =~ ^[A-Za-z0-9_.-]{1,32}$ ]] || die "Имя: латиница, цифры, _ . - (до 32 символов)."
   [[ $PANEL_SSL =~ ^(auto|ip|none)$ ]] || die "--panel-ssl: auto, ip или none"
@@ -218,7 +316,16 @@ main() {
   HOST=${HOST:-$(public_ip)}
   [[ -n $HOST ]] || die "Не удалось узнать внешний IP. Укажите его: --host 1.2.3.4"
 
-  if [[ -z $SNI ]]; then
+  # Маскировка: из флагов, по вопросу пользователю или стандартная.
+  if [[ -n $DOMAIN ]]; then
+    [[ $TRUSTED == yes ]] || die "Свой домен требует доверенного сертификата панели: освободите порт 80 или добавьте --cert и --key."
+    domain_points_here "$DOMAIN" || die "Исправьте A-запись домена и запустите скрипт снова (DNS обновляется от нескольких минут до нескольких часов)."
+  elif [[ -z $SNI && $yes == no && $TRUSTED == yes && $multi == no && ! -f $XUI_ENV && -t 1 ]] && { : </dev/tty; } 2>/dev/null; then
+    choose_masking
+  fi
+  if [[ -n $DOMAIN ]]; then
+    SNI=$DOMAIN
+  elif [[ -z $SNI ]]; then
     say "Выбираю сайт для маскировки REALITY"
     for s in "${SNI_CANDIDATES[@]}"; do
       if sni_ok "$s"; then SNI=$s; break; fi
@@ -227,7 +334,7 @@ main() {
   elif ! sni_ok "$SNI"; then
     die "$SNI не отвечает по TLS 1.3 + HTTP/2 – REALITY с ним работать не будет. Выберите другой сайт."
   fi
-  say "Маскировка: ${B}$SNI${N}"
+  say "Маскировка: ${B}$SNI${N}${DOMAIN:+ (свой домен)}"
   # Для режима «всё на 443» XHTTP и MTProto нужны свои сайты: nginx различает их по SNI.
   for s in "${SNI_CANDIDATES[@]}"; do
     [[ $s == "$SNI" ]] && continue
@@ -288,6 +395,11 @@ main() {
       SINGLE=yes
     fi
   fi
+  if [[ -n $DOMAIN ]]; then
+    [[ $SINGLE == yes ]] || die "Свой домен работает только в режиме «всё на 443», а эта установка уже работает с отдельными портами."
+    issue_domain_cert
+    OPEN+=("80/tcp")
+  fi
   local p
   for p in "${PROTOS[@]}"; do "proto_$p"; done
   # Первый пользователь – сразу на всех протоколах (как «kit user add»).
@@ -343,6 +455,7 @@ main() {
   echo
   echo "${G}${B}Готово! 3X-UI работает: ${#CREATED[@]} протоколов.${N}"
   echo "${D}${CREATED[*]}${N}"
+  [[ -n $DOMAIN ]] && echo "Маскировка: свой домен ${B}$DOMAIN${N}, сертификат Let's Encrypt продлевается сам."
   echo
   echo "Панель:  ${B}$panel_url${N}"
   echo "Логин:   ${B}$XUI_USERNAME${N}"
@@ -526,9 +639,9 @@ proto_reality() {
   local keys stream settings
   keys=$(api GET server/getNewX25519Cert)
   settings=$(jq -nc --arg id "$(uuid)" --argjson c "$(client_base reality)" '{clients: [$c + {id: $id, flow: "xtls-rprx-vision"}], decryption: "none", fallbacks: []}')
-  stream=$(jq -nc --arg sni "$SNI" --argjson k "$keys" --arg sid "$(openssl rand -hex 8)" '{
+  stream=$(jq -nc --arg sni "$SNI" --arg target "$(reality_target "$SNI")" --argjson k "$keys" --arg sid "$(openssl rand -hex 8)" '{
     network: "tcp", security: "reality", externalProxy: [],
-    realitySettings: {show: false, xver: 0, target: ($sni + ":443"), serverNames: [$sni], privateKey: $k.privateKey,
+    realitySettings: {show: false, xver: 0, target: $target, serverNames: [$sni], privateKey: $k.privateKey,
       minClientVer: "", maxClientVer: "", maxTimediff: 0, shortIds: [$sid],
       settings: {publicKey: $k.publicKey, fingerprint: "chrome", serverName: "", spiderX: "/"}},
     tcpSettings: {acceptProxyProtocol: false, header: {type: "none"}}}')
@@ -842,8 +955,11 @@ setup_nginx() {
   [[ -f /var/www/kit/index.html ]] || stub_site >/var/www/kit/index.html
 
   # Маршруты – из текущих подключений панели: сайты REALITY, пути WebSocket, сервисы gRPC.
-  local list reality_sni xhttp_sni mt_sni locs="" kind path port
+  local list reality_sni xhttp_sni mt_sni steal_domain locs="" kind path port
   list=$(api GET inbounds/list)
+  # Свой домен: REALITY отдаёт чужим гостям сайт с этого же сервера (nginx на внутреннем порту).
+  steal_domain=$(jq -r --arg t "127.0.0.1:${INNER[selfweb]}" '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1")
+    | (.streamSettings | if type == "string" then fromjson else . end).realitySettings | select(.target == $t) | .serverNames[0]' <<<"$list")
   reality_sni=$(jq -r '.[] | select(.remark == "REALITY" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   xhttp_sni=$(jq -r '.[] | select(.remark == "XHTTP" and .listen == "127.0.0.1") | (.streamSettings | if type == "string" then fromjson else . end).realitySettings.serverNames[0]' <<<"$list")
   mt_sni=$(jq -r '.[] | select(.protocol == "mtproto" and .listen == "127.0.0.1") | (.settings | if type == "string" then fromjson else . end).fakeTlsDomain' <<<"$list")
@@ -933,6 +1049,28 @@ $locs
     }
 }
 NGX
+  if [[ -n $steal_domain ]]; then
+    [[ $steal_domain =~ ^[A-Za-z0-9.-]+$ ]] || die "В подключении REALITY странное имя домена – не трогаю nginx."
+    [[ -s $DOMAIN_CERT_DIR/fullchain.pem && -s $DOMAIN_CERT_DIR/privkey.pem ]] || die "Нет сертификата для $steal_domain ($DOMAIN_CERT_DIR)."
+    cat >>/etc/nginx/conf.d/kit.conf <<NGX
+
+# Свой домен (self-steal): сюда REALITY отправляет всех, кто не подключается как клиент.
+# Только заглушка, без панели и подписки; порт слушает localhost.
+server {
+    listen 127.0.0.1:${INNER[selfweb]} ssl http2;
+    server_name $steal_domain;
+    ssl_certificate $DOMAIN_CERT_DIR/fullchain.pem;
+    ssl_certificate_key $DOMAIN_CERT_DIR/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    server_tokens off;
+    access_log off;
+    location / {
+        root /var/www/kit;
+        index index.html;
+    }
+}
+NGX
+  fi
   grep -q 'kit-stream.conf' /etc/nginx/nginx.conf || echo 'include /etc/nginx/kit-stream.conf;' >>/etc/nginx/nginx.conf
   nginx -t >/tmp/nginx-test.log 2>&1 || { cat /tmp/nginx-test.log >&2; die "nginx не принял конфиг – лог выше."; }
   systemctl enable nginx >/dev/null 2>&1
@@ -1159,7 +1297,7 @@ PY
   python3 -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'; c.execute('SELECT count(*) FROM inbounds')" \
     "$tmp/etc/x-ui/x-ui.db" 2>/dev/null || die "База панели в копии повреждена. Ничего не менял."
 
-  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION=""
+  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION="" BACKUP_DOMAIN=""
   # shellcheck disable=SC1090
   . "$tmp/kit-backup.env"
   [[ $BACKUP_SSL =~ ^(ip|custom|none)$ ]] || die "В копии нет данных о сертификате."
@@ -1172,7 +1310,14 @@ PY
   else
     HOST=$BACKUP_HOST
   fi
-  [[ $PANEL_SSL == ip ]] && port_busy 80 tcp && die "Для сертификата панели нужен свободный порт 80/tcp."
+  [[ $PANEL_SSL == ip || -n $BACKUP_DOMAIN ]] && port_busy 80 tcp && die "Для сертификата нужен свободный порт 80/tcp."
+  # Свой домен: сертификат в копию не кладём, на новом сервере он выпускается заново,
+  # а для этого домен уже должен вести на новый IP.
+  if [[ -n $BACKUP_DOMAIN ]]; then
+    [[ $BACKUP_DOMAIN =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]] || die "В копии странное имя домена – не восстанавливаю."
+    domain_points_here "$BACKUP_DOMAIN" || die "Сервер в копии маскируется под домен $BACKUP_DOMAIN. Сначала направьте его A-запись на этот сервер, потом запустите восстановление снова. Ничего не менял."
+    DOMAIN=$BACKUP_DOMAIN
+  fi
   # Конфиги nginx и kit-sub из архива не берём, а собираем заново: из копии – только
   # проверенные значения (путь подписки, порты, режим).
   SINGLE=no; SUB_PATH=""; SUB_INTERNAL=""; SUB_PORT=""
@@ -1225,6 +1370,7 @@ PY
   fi
   # Всё на 443: nginx строит маршруты по подключениям из базы, заглушка – из копии.
   if [[ $SINGLE == yes ]]; then
+    [[ -n $DOMAIN ]] && issue_domain_cert
     install -d -m 755 /var/www/kit
     [[ -f $tmp/var/www/kit/index.html ]] && install -m 644 "$tmp/var/www/kit/index.html" /var/www/kit/index.html
     setup_nginx
@@ -1243,7 +1389,7 @@ PY
       | if (.protocol | test("^(hysteria|hysteria2|tuic|wireguard|amneziawg)$")) then "\(.port)/udp"
         elif .protocol == "shadowsocks" then "\(.port)/tcp", "\(.port)/udp" else "\(.port)/tcp" end')
     [[ $TRUSTED == yes && $SINGLE == no ]] && OPEN+=("$XUI_PANEL_PORT/tcp")
-    [[ $PANEL_SSL == ip ]] && OPEN+=("80/tcp")
+    [[ $PANEL_SSL == ip || -n $DOMAIN ]] && OPEN+=("80/tcp")
     setup_ufw
   fi
 
@@ -1276,7 +1422,10 @@ usage() {
                       (обычный WireGuard в России блокируется – включайте его, только если сервер и
                       пользователи за границей)
   --port 443          порт REALITY (TCP) и Hysteria2 (UDP), по умолчанию 443
-  --sni сайт          сайт для маскировки (по умолчанию подбирается сам)
+  --sni сайт          чужой сайт для маскировки (по умолчанию подбирается сам)
+  --domain домен      свой домен для маскировки (надёжнее): его A-запись должна вести на этот
+                      сервер, порт 80 свободен; сертификат Let's Encrypt установщик получит сам.
+                      Без флагов установщик спросит, какую маскировку выбрать
   --panel-ssl ip|none сертификат панели: ip – Let's Encrypt на IP (нужен порт 80),
                       none – панель только через SSH-туннель (по умолчанию выбирается сам)
   --cert файл --key файл  свой сертификат (например, для домена) вместо Let's Encrypt на IP;

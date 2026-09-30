@@ -487,7 +487,7 @@ cmd_update() {
 
 # Всё, что нужно, чтобы поднять тот же сервер в другом месте: база панели (пользователи,
 # ключи, подключения), настройки kit и kit-sub, nginx, сайт-заглушка, свои сертификаты.
-# Сертификат Let's Encrypt на IP не берём: на новом сервере он выпускается заново.
+# Сертификаты Let's Encrypt (на IP и на свой домен) не берём: на новом сервере он выпускается заново.
 BACKUP_PATHS=(/etc/x-ui/install-result.env /etc/kit/kit.env /etc/kit-sub/config.json
   /etc/nginx/kit-stream.conf /etc/nginx/conf.d/kit.conf /var/www/kit /root/cert/self /root/cert/custom /root/3x-ui.txt)
 
@@ -514,11 +514,19 @@ PY
     /root/cert/ip/*) ssl=ip ;;
     /root/cert/custom/*) ssl=custom ;;
   esac
+  # Свой домен (self-steal): имя сайта для REALITY. Сертификат в копию не кладём,
+  # на новом сервере он выпускается заново, когда домен уже ведёт на новый IP.
+  local dom=""
+  if [[ -f /etc/nginx/conf.d/kit.conf ]]; then
+    dom=$(awk '/listen 127\.0\.0\.1:10447 / {f=1} f && $1 == "server_name" {sub(/;$/, "", $2); print $2; exit}' /etc/nginx/conf.d/kit.conf)
+  fi
+  [[ $dom =~ ^[A-Za-z0-9.-]+$ ]] || dom=""
   {
     printf 'BACKUP_KIT_VERSION=%q\n' "$KIT_VERSION"
     printf 'BACKUP_HOST=%q\n' "$HOST"
     printf 'BACKUP_SSL=%q\n' "$ssl"
     printf 'BACKUP_DATE=%q\n' "$(date +%F)"
+    printf 'BACKUP_DOMAIN=%q\n' "$dom"
   } >"$tmp/kit-backup.env"
   (umask 077; tar -czf "$out" -C "$tmp" .)
   chmod 600 "$out"
