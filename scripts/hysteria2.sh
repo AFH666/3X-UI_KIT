@@ -437,7 +437,8 @@ cmd_status() {
 # Открытый ключ, которым автор подписывает релизы (тот же, что в kit). Обновление ставится,
 # только если SHA256SUMS релиза подписан этим ключом и скрипт совпал с подписанным хешем.
 KIT_SIGNERS=(
-  # KIT_SIGNER_KEY
+  # SHA256:VDuGgJ8dOeCNXB4nBZf3+kRlWthw3+vh8rfMxzMSRIM (itsnotkubrick, 2026-09-30)
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGrTGCDhhnm8XO1ekpPJuSWRVCJiFiupEspfQxcbEBmz 3X-UI KIT releases"
 )
 KIT_SIG_NS="3x-ui-kit-release"
 KIT_SIG_ID="releases@3x-ui-kit"
