@@ -4,9 +4,9 @@
 
 **Свой VPN-сервер одной командой: 11 протоколов, один порт 443, одна подписка на всё**
 
-[![Протоколов](https://img.shields.io/badge/протоколов-11-3fb950)](manuals/3x-ui.md#протоколы)
-[![3X-UI](https://img.shields.io/badge/3X--UI-v3.8.5-3fb950)](https://github.com/MHSanaei/3x-ui)
-[![Обновлено](https://img.shields.io/github/last-commit/itsnotkubrick/3X-UI_KIT?label=обновлено&color=3fb950)](https://github.com/itsnotkubrick/3X-UI_KIT/commits)
+[![Протоколов](https://img.shields.io/badge/протоколов-11-93E06F?labelColor=221B17)](manuals/3x-ui.md#протоколы)
+[![3X-UI](https://img.shields.io/badge/3X--UI-v3.8.5-93E06F?labelColor=221B17)](https://github.com/MHSanaei/3x-ui)
+[![Обновлено](https://img.shields.io/github/last-commit/itsnotkubrick/3X-UI_KIT?label=обновлено&color=93E06F&labelColor=221B17)](https://github.com/itsnotkubrick/3X-UI_KIT/commits)
 
 [Возможности](#возможности) · [Установка](#установка) · [Генераторы](#генераторы-конфигов-для-xkeen) · [Полезное](#полезное) · [Поддержать](#поддержать-проект)
 
