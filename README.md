@@ -8,7 +8,7 @@
 [![3X-UI](https://img.shields.io/badge/3X--UI-v3.8.5-93E06F?labelColor=221B17)](https://github.com/MHSanaei/3x-ui)
 [![Обновлено](https://img.shields.io/github/last-commit/itsnotkubrick/3X-UI_KIT?label=обновлено&color=93E06F&labelColor=221B17)](https://github.com/itsnotkubrick/3X-UI_KIT/commits)
 
-[Возможности](#возможности) · [Установка](#установка) · [Генераторы](#генераторы-конфигов-для-xkeen) · [Полезное](#полезное) · [Поддержать](#поддержать-проект)
+[Возможности](#возможности) · [Установка](#установка) · [Генератор](#генератор-конфигов-для-роутера) · [Полезное](#полезное) · [Поддержать](#поддержать-проект)
 
 </div>
 
@@ -71,17 +71,18 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 > Проект создан в образовательных целях. Убедитесь, что ваши действия
 > соответствуют законодательству вашей страны.
 
-## Генераторы конфигов для XKeen
+## Генератор конфигов для роутера
 
-Вставьте ссылку на сервер или подписку, отметьте нужные сервисы – и получите
-готовый конфиг и одну команду, которая сама положит его на роутер.
+Вставьте ссылку на сервер или подписку, выберите роутер и ядро, отметьте нужные сервисы –
+и получите готовый конфиг и одну команду, которая сама положит его на роутер.
 Всё считается в браузере, ссылки никуда не отправляются.
 Как поставить XKeen на роутер – в [инструкции для Keenetic](manuals/xkeen-keenetic.md).
 
-| | Генератор | Что получится |
+| Роутер | Ядро | Что получится |
 |---|---|---|
-| ⚙️ | [Xray](https://itsnotkubrick.github.io/3X-UI_KIT/tools/xray/) | `04_outbounds.json` и `05_routing.json`: серверы, выбор сервисов, реклама, свои сайты |
-| 🧩 | [Mihomo](https://itsnotkubrick.github.io/3X-UI_KIT/tools/mihomo/) | `config.yaml` с автовыбором сервера, подпиской, Hysteria2, AmneziaWG и веб-панелью |
+| Keenetic (XKeen) | [Xray](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=xray) | `04_outbounds.json` и `05_routing.json`: серверы, выбор сервисов, реклама, свои сайты |
+| Keenetic (XKeen) | [Mihomo](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=mihomo) | `config.yaml` с автовыбором сервера, подпиской, Hysteria2, AmneziaWG и веб-панелью |
+| OpenWrt (Nikki), бета | [Mihomo](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?router=openwrt) | профиль для Nikki и команда, которая его включит |
 
 ## Полезное
 

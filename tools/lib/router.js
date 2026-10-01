@@ -5,7 +5,7 @@
   // Что умеет каждый роутер: на Keenetic работает XKeen (Xray или Mihomo), на OpenWrt – Nikki (только Mihomo).
   const ROUTERS = {
     keenetic: { label: 'Keenetic', hint: 'через XKeen', cores: ['xray', 'mihomo'], ssh: 'ssh root@192.168.x.x -p 222' },
-    openwrt: { label: 'OpenWrt', hint: 'через Nikki, только Mihomo', cores: ['mihomo'], ssh: 'ssh root@192.168.x.x' },
+    openwrt: { label: 'OpenWrt', hint: 'через Nikki, только Mihomo (бета)', cores: ['mihomo'], ssh: 'ssh root@192.168.x.x' },
   };
   const CORES = {
     xray: { label: 'Xray', hint: '04_outbounds.json и 05_routing.json' },
