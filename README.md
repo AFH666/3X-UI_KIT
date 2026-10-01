@@ -78,11 +78,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 Всё считается в браузере, ссылки никуда не отправляются.
 Как поставить XKeen на роутер – в [инструкции для Keenetic](manuals/xkeen-keenetic.md).
 
-| Роутер | Ядро | Что получится |
-|---|---|---|
-| Keenetic (XKeen) | [Xray](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=xray) | `04_outbounds.json` и `05_routing.json`: серверы, выбор сервисов, реклама, свои сайты |
-| Keenetic (XKeen) | [Mihomo](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=mihomo) | `config.yaml` с автовыбором сервера, подпиской, Hysteria2, AmneziaWG и веб-панелью |
-| OpenWrt (Nikki), бета | [Mihomo](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?router=openwrt) | профиль для Nikki и команда, которая его включит |
+| Роутер | Ядро | Что получится | Генератор |
+|---|---|---|---|
+| Keenetic (XKeen) | Xray | `04_outbounds.json` и `05_routing.json`: серверы, выбор сервисов, реклама, свои сайты | [Открыть →](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=xray) |
+| Keenetic (XKeen) | Mihomo | `config.yaml` с автовыбором сервера, подпиской, Hysteria2, AmneziaWG и веб-панелью | [Открыть →](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?core=mihomo) |
+| OpenWrt (Nikki), бета | Mihomo | профиль для Nikki и команда, которая его включит | [Открыть →](https://itsnotkubrick.github.io/3X-UI_KIT/tools/?router=openwrt) |
 
 ## Полезное
 
