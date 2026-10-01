@@ -527,8 +527,7 @@ PY
   echo "В ней ключи и пароли от сервера, храните её как пароль. Скачать к себе (на компьютере):"
   echo "  ${B}scp root@$HOST:$out .${N}"
   echo
-  echo "Поднять сервер из копии на новом VPS:"
-  echo "  ${B}bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh) --restore ${out##*/}${N}"
+  echo "${D}Восстановление из копии на новом VPS появится в версии 1.2.${N}"
 }
 
 usage() {

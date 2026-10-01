@@ -138,7 +138,7 @@ curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/script
 Панель 3X-UI обновляется отдельно, через `x-ui`. Ядро Xray в панели не обновляйте до последней
 версии: с Xray 26.7 и новее Hiddify, FlClash и Clash Verge не подключаются к REALITY.
 
-## Резервная копия и переезд
+## Резервная копия
 
 ```bash
 kit backup
@@ -152,21 +152,8 @@ kit backup
 scp root@IP:/root/kit-backup-ДАТА.tar.gz .
 ```
 
-Переезд на новый VPS: скопируйте файл на новый сервер и запустите установщик с `--restore`:
-
-```bash
-scp kit-backup-ДАТА.tar.gz root@НОВЫЙ_IP:
-bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh) --restore kit-backup-ДАТА.tar.gz
-```
-
-Скрипт поставит ту же версию 3X-UI и вернёт всё из копии, логин и пароль панели остаются
-прежними. Копию он берёт только из локального файла и сначала проверяет: лишние файлы или
-странные пути внутри архива, и восстановление не начнётся.
-
-- **Сервер на домене** (`--cert`, `--key`, `--host`): переключите A-запись домена на новый IP,
-  и клиенты ничего не заметят.
-- **Сервер на IP:** скрипт сам поменяет адрес в подключениях, но старые подписки указывают на
-  старый IP. Клиентам нужно один раз добавить подписку заново: `kit user link имя`.
+Восстановление из копии на новом VPS появится в версии 1.2. Пока копия нужна как страховка:
+храните её отдельно от сервера.
 
 ## Параметры
 
@@ -175,10 +162,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 | `--protocols reality,hy2,ws` | только выбранные протоколы; `minimal` – только REALITY |
 | `--port 8443` | порт REALITY (TCP) и Hysteria2 (UDP) вместо 443 |
 | `--cert fullchain.pem --key privkey.pem --host домен` | свой сертификат, например для домена |
-| `--sni www.samsung.com` | свой сайт для маскировки REALITY |
+| `--sni www.samsung.com` | чужой сайт для маскировки REALITY |
+| `--domain vpn.example.com` | свой домен для маскировки (A-запись на IP сервера, свободный порт 80) |
 | `--no-ufw` | не трогать файрвол |
 | `--multi-port` | прежняя схема: у каждого протокола свой порт, без nginx |
-| `--restore файл` | поднять сервер из резервной копии `kit backup` |
 
 ## Как устроена подписка
 

@@ -291,11 +291,8 @@ main() {
     esac
   done
   [[ $PORT =~ ^[0-9]+$ ]] && ((PORT > 0 && PORT < 65536)) || die "Неверный порт: $PORT"
-  if [[ -n $restore ]]; then
-    [[ -z $HOST || $HOST =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--host при восстановлении: IP нового сервера"
-    restore_main "$restore"
-    return
-  fi
+  # Восстановление из копии (restore_main) отключено до версии 1.2: его ещё не проверили на настоящем сервере.
+  [[ -z $restore ]] || die "Восстановление из копии появится в версии 1.2. Пока доступна только резервная копия: kit backup."
   local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например dl.google.com"
   [[ -z $DOMAIN || $DOMAIN =~ $re_host ]] || die "--domain: нужно имя вашего домена, например vpn.example.com"
@@ -396,6 +393,16 @@ main() {
     systemctl restart x-ui
     API="https://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
     wait_panel
+  fi
+
+  # Установщик 3X-UI мог не получить сертификат на IP (порт 80 закрыт у хостера, лимит
+  # Let's Encrypt, сбой). Без него панель осталась бы без TLS, а nginx проксирует её по https:
+  # получился бы сервер, который говорит «Готово», а панель не открывается.
+  if [[ $PANEL_SSL == ip && ! -s /root/cert/ip/fullchain.pem ]]; then
+    [[ -z $DOMAIN ]] || die "Let's Encrypt не выдал сертификат на IP $HOST, а свой домен без него не работает. Частые причины: порт 80 закрыт у хостера, лимит Let's Encrypt (5 выпусков на один IP за неделю), сбой у Let's Encrypt. Лог: /var/log/3x-ui-install.log"
+    warn "Let's Encrypt не выдал сертификат на IP $HOST (порт 80 закрыт у хостера, лимит выпусков или сбой). Ставлю без него: панель будет доступна только через SSH-туннель."
+    PANEL_SSL=none
+    TRUSTED=no
   fi
 
   # Без сертификата панель и подписки не должны торчать наружу по HTTP.
@@ -1487,7 +1494,6 @@ usage() {
   --user admin        имя первого клиента
   --host 1.2.3.4      адрес в ссылке, если IP определился неверно
   --no-ufw            не трогать файрвол
-  --restore файл      поднять сервер из резервной копии kit backup (на чистом VPS)
   -y                  не задавать вопросов
 EOF
 }
