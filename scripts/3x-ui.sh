@@ -13,7 +13,17 @@
 set -Eeuo pipefail
 
 # На свежем VPS в фоне идут автообновления системы и держат замок dpkg: ждём его, а не падаем.
-apt-get() { command apt-get -o DPkg::Lock::Timeout=300 "$@"; }
+apt-get() { command apt-get -o DPkg::Lock::Timeout=900 "$@"; }
+wait_apt_idle() {
+  local i
+  pgrep -f '/usr/bin/unattended-upgrade$|apt\.systemd\.daily' >/dev/null || return 0
+  printf '%s\n' "==> Система сама ставит обновления – жду, пока закончит (до 15 минут)"
+  for i in $(seq 1 180); do
+    pgrep -f '/usr/bin/unattended-upgrade$|apt\.systemd\.daily' >/dev/null || return 0
+    sleep 5
+  done
+  return 0
+}
 
 XUI_VERSION="v3.8.5"
 # SHA256 установщика 3X-UI этой версии: тег могут передвинуть, а хеш – нет (проверено 2026-09-30).
@@ -330,6 +340,7 @@ main() {
 
   say "Ставлю пакеты: curl, jq, openssl, qrencode, ufw"
   export DEBIAN_FRONTEND=noninteractive
+  wait_apt_idle
   apt-get update -qq
   apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron >/dev/null
 
@@ -1282,6 +1293,7 @@ restore_main() { # файл
 
   say "Ставлю пакеты: curl, jq, openssl, qrencode, ufw, python3"
   export DEBIAN_FRONTEND=noninteractive
+  wait_apt_idle
   apt-get update -qq
   apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron python3 python3-yaml >/dev/null
 
