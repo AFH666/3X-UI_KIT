@@ -15,8 +15,12 @@
 ---
 
 > [!TIP]
-> **Что нового** – в [CHANGELOG](CHANGELOG.md) и на странице [релизов](https://github.com/itsnotkubrick/3X-UI_KIT/releases).
-> Сервер на версии 1.0 обновляется по [инструкции](manuals/3x-ui.md#обновление).
+> **Вышла версия 1.1:** исправления по аудиту безопасности, автообновление только подписанных
+> релизов, выбор маскировки (свой домен). [Что нового](https://github.com/itsnotkubrick/3X-UI_KIT/releases/tag/v1.1) ·
+> сервер на 1.0 обновляется одной командой:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
+> ```
 
 **3X-UI KIT** превращает чистый VPS в готовый VPN-сервер за несколько минут. Скрипт ставит
 официальную панель [3X-UI](https://github.com/MHSanaei/3x-ui), настраивает все популярные
