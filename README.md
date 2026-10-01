@@ -63,41 +63,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 
 Через пару минут скрипт покажет адрес панели, логин, пароль и подписку с QR-кодом.
 
-<details>
-<summary>🔍 Хотите сначала посмотреть скрипт? Установка с проверкой</summary>
-
-Скачайте скрипт конкретной версии, прочитайте его и сверьте SHA256 с файлом `SHA256SUMS`
-из того же релиза. Этот файл подписан ключом автора, подпись тоже можно проверить:
-
-```bash
-v=1.1; raw=https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$v
-curl -fsSLO $raw/scripts/3x-ui.sh -O $raw/SHA256SUMS -O $raw/SHA256SUMS.sig
-less 3x-ui.sh
-grep 3x-ui.sh SHA256SUMS && sha256sum 3x-ui.sh
-bash 3x-ui.sh
-```
-
-<details>
-<summary>Проверка подписи</summary>
-
-Открытый ключ автора записан в [`scripts/kit.sh`](scripts/kit.sh) (`KIT_SIGNERS`). Сохраните его
-строку в файл `allowed_signers` в виде `releases@3x-ui-kit namespaces="3x-ui-kit-release" ssh-ed25519 AAAA…`
-и выполните:
-
-```bash
-ssh-keygen -Y verify -f allowed_signers -I releases@3x-ui-kit -n 3x-ui-kit-release -s SHA256SUMS.sig < SHA256SUMS
-```
-
-«Good signature» – файл подписан автором. Так же каждую ночь проверяет обновления ваш сервер.
-
-</details>
-
-Скрипт версии 1.1 скачивает свои части (`kit`, `kit-sub`) из того же релиза, а установщик
-3X-UI сверяет по SHA256 и не запускает, если он изменился. Первый раз удобнее ставить на
-свежий VPS без ваших данных.
-
-</details>
-
 Подробно – подключение приложений, дополнительные пользователи и параметры –
 в **[инструкции](manuals/3x-ui.md)**. Нужен только Hysteria2 – есть
 [отдельный скрипт](manuals/hysteria2.md).
