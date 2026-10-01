@@ -138,3 +138,35 @@ test('Mihomo: порты XKeen и прокси', () => {
   assert.equal(r.config.proxies[1].fingerprint, 'abcdef');
   assert.match(r.yaml, /name: "Германия"/);
 });
+
+test('Команда для роутера: Keenetic (Xray и Mihomo) и OpenWrt (Nikki)', () => {
+  const { routerCommand, ROUTERS } = require('../lib/router.js');
+  const xr = routerCommand('keenetic', 'xray', { '04_outbounds.json': '{}\n', '05_routing.json': '{}' });
+  assert.match(xr, /mkdir -p \/opt\/etc\/xray\/configs/);
+  assert.match(xr, /cat > \/opt\/etc\/xray\/configs\/04_outbounds.json <<'PMEOF'/);
+  assert.match(xr, /# xkeen -xray/);
+  assert.ok(xr.trimEnd().endsWith('xkeen -restart'));
+  const mh = routerCommand('keenetic', 'mihomo', { 'config.yaml': 'a: 1' });
+  assert.match(mh, /\/opt\/etc\/mihomo\/config.yaml/);
+  assert.match(mh, /# xkeen -mihomo/);
+  const nk = routerCommand('openwrt', 'mihomo', { 'config.yaml': 'a: 1' });
+  assert.match(nk, /mkdir -p \/etc\/nikki\/profiles/);
+  assert.match(nk, /cat > \/etc\/nikki\/profiles\/3x-ui-kit.yaml <<'PMEOF'/);
+  assert.match(nk, /uci set nikki.config.profile='file:3x-ui-kit.yaml'/);
+  assert.match(nk, /uci set nikki.config.enabled='1'/);
+  assert.match(nk, /uci commit nikki\n\/etc\/init.d\/nikki restart\n$/);
+  assert.ok(!nk.includes('xkeen'));
+  // На OpenWrt нет Xray, а метка heredoc не должна встретиться внутри файла.
+  assert.throws(() => routerCommand('openwrt', 'xray', {}));
+  assert.deepEqual(ROUTERS.openwrt.cores, ['mihomo']);
+  assert.match(routerCommand('keenetic', 'mihomo', { 'config.yaml': 'PMEOF\nx' }), /<<'PMEOFX'/);
+});
+
+test('Mihomo: заголовок для Nikki и для XKeen', () => {
+  const p = parseText(REALITY).proxies;
+  const nikki = buildMihomo(p, { secret: 'x', target: 'nikki' }).yaml;
+  assert.match(nikki, /# Для Nikki \(OpenWrt\): профиль \/etc\/nikki\/profiles\/3x-ui-kit.yaml/);
+  assert.ok(!nikki.includes('xkeen -restart'));
+  const xkeen = buildMihomo(p, { secret: 'x' }).yaml;
+  assert.match(xkeen, /# Файл для XKeen: \/opt\/etc\/mihomo\/config.yaml/);
+});

@@ -1,4 +1,262 @@
 <!DOCTYPE html>
-<html lang="ru"><head><meta charset="utf-8"><title>Генераторы конфигов</title>
-<meta http-equiv="refresh" content="0; url=xray/"></head>
-<body><a href="xray/">Генератор Xray</a> · <a href="mihomo/">Генератор Mihomo</a></body></html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Конфиг для роутера: Keenetic и OpenWrt</title>
+<meta name="description" content="Готовый конфиг Xray или Mihomo и команда для роутера Keenetic (XKeen) или OpenWrt (Nikki) из ссылок на ваш сервер – прямо в браузере">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕶️</text></svg>">
+<link rel="stylesheet" href="lib/ui.css">
+</head>
+<body>
+<header><div class="bar">
+  <a class="brand" href="https://github.com/itsnotkubrick/3X-UI_KIT">3X-UI<span>.kit</span></a>
+  <nav><a href="https://github.com/itsnotkubrick/3X-UI_KIT/blob/main/manuals/xkeen-keenetic.md">Инструкции</a></nav>
+</div></header>
+
+<main>
+  <h1>Конфиг для роутера</h1>
+  <p class="lead" id="lead"></p>
+  <div class="privacy">🔒 <span>Всё считается <b>в вашем браузере</b>: ссылки никуда не отправляются</span></div>
+
+  <section class="step">
+    <h2><span class="num">1</span>Роутер</h2>
+    <div class="grid two" id="routers"></div>
+    <div class="sub" style="margin-top:18px">Ядро</div>
+    <div class="grid two" id="cores"></div>
+    <p class="hint" id="coreNote" hidden></p>
+  </section>
+
+  <section class="step">
+    <h2><span class="num">2</span><span id="serversTitle">Серверы</span></h2>
+    <textarea id="links" class="mono" spellcheck="false" placeholder="vless://…&#10;hy2://…&#10;По одной на строку. Можно вставить подписку в base64 целиком."></textarea>
+    <div class="parsed" id="parsed"></div>
+    <div id="subBox">
+      <label class="field" for="sub">Или ссылка на подписку</label>
+      <input type="url" id="sub" class="mono" spellcheck="false" placeholder="https://…">
+    </div>
+    <p class="hint" id="serversHint"></p>
+  </section>
+
+  <section class="step">
+    <h2><span class="num">3</span>Что пускать через прокси</h2>
+    <div id="basesBox">
+      <div class="sub">Геобазы на роутере</div>
+      <div class="grid" id="bases"></div>
+      <p class="hint">Какие базы вы выбрали при установке XKeen. Не уверены – оставьте ZKeen: её XKeen ставит по умолчанию.</p>
+    </div>
+    <div class="sub">Сервисы</div>
+    <div class="grid" id="servicesXray"></div>
+    <div class="grid" id="servicesMihomo"></div>
+    <div class="sub">Дополнительно</div>
+    <div class="grid">
+      <label class="opt" id="perServiceOpt"><input type="checkbox" id="perService"><span>Свой выбор сервера для каждого сервиса<small>в панели можно пустить YouTube через один сервер, а Telegram – через другой</small></span></label>
+      <label class="opt"><input type="checkbox" id="blockQuic" checked><span>Блокировать QUIC<small>видео через прокси грузится стабильнее</small></span></label>
+      <label class="opt" id="adsOpt"><input type="checkbox" id="blockAds"><span>Блокировать рекламу<small id="adsHint"></small></span></label>
+      <label class="opt"><input type="checkbox" id="finalProxy"><span>Всё остальное тоже через прокси<small>иначе остальное идёт напрямую</small></span></label>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div><label class="field" for="proxyDomains">Свои сайты через прокси</label>
+        <textarea id="proxyDomains" class="mono" rows="3" style="min-height:76px" placeholder="example.com&#10;chat.example.org"></textarea></div>
+      <div><label class="field" for="directDomains">Свои сайты напрямую</label>
+        <textarea id="directDomains" class="mono" rows="3" style="min-height:76px" placeholder="mybank.ru"></textarea></div>
+    </div>
+    <div id="tagBox">
+      <label class="field" for="tag">Тег основного сервера</label>
+      <input type="text" id="tag" value="vless-reality" spellcheck="false">
+      <p class="hint">XKeen по умолчанию ожидает <code>vless-reality</code>: менять стоит, только если вы правили правила вручную.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <h2><span class="num">4</span>Готовый конфиг</h2>
+    <div id="result"><div class="empty">Добавьте ссылку в шаг 2: здесь появятся файлы.</div></div>
+  </section>
+
+  <section class="step">
+    <h2><span class="num">5</span>Команда для роутера</h2>
+    <div id="cmdBox"><div class="empty">Команда появится, когда будет готов конфиг.</div></div>
+  </section>
+
+  <p class="hint">Как установить XKeen или Nikki: <a href="https://github.com/itsnotkubrick/3X-UI_KIT/blob/main/manuals/xkeen-keenetic.md">инструкции на GitHub</a></p>
+</main>
+<footer><a href="https://github.com/itsnotkubrick/3X-UI_KIT/tree/main/tools">Исходный код на GitHub</a> · <span id="tested"></span></footer>
+
+<script src="lib/links.js"></script>
+<script src="lib/xray.js"></script>
+<script src="lib/mihomo.js"></script>
+<script src="lib/router.js"></script>
+<script src="lib/ui.js"></script>
+<script>
+(function () {
+  const { $, esc, store } = UI;
+  const XS = PM.XRAY_SERVICES, XB = PM.XRAY_BASES, MS = PM.MIHOMO_SERVICES, R = PM.ROUTERS, C = PM.CORES;
+  const saved = { xray: JSON.parse(store.get('xray') || '{}'), mihomo: JSON.parse(store.get('mihomo') || '{}') };
+  const q = new URLSearchParams(location.search);
+  // Секрет панели Mihomo создаётся один раз на странице, чтобы не менялся при каждой правке.
+  const secret = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  let router = pick(q.get('router') || store.get('router'), Object.keys(R), 'keenetic');
+  let core = pick(q.get('core') || store.get('core'), Object.keys(C), 'mihomo');
+  if (!R[router].cores.includes(core)) core = R[router].cores[0];
+  let tab = null, files = null;
+
+  const radio = (name, id, on, off, label, hint) =>
+    '<label class="opt' + (on ? ' on' : '') + (off ? ' off' : '') + '"><input type="radio" name="' + name + '" value="' + id + '"' +
+    (on ? ' checked' : '') + (off ? ' disabled' : '') + '><span>' + esc(label) + '<small>' + esc(hint) + '</small></span></label>';
+  function drawChoices() {
+    $('#routers').innerHTML = Object.keys(R).map((k) => radio('router', k, k === router, false, R[k].label, R[k].hint)).join('');
+    $('#cores').innerHTML = Object.keys(C).map((k) => radio('core', k, k === core, !R[router].cores.includes(k), C[k].label, C[k].hint)).join('');
+    $('#coreNote').hidden = router !== 'openwrt';
+    $('#coreNote').textContent = 'На OpenWrt конфиг ставится в Nikki, а он работает на ядре Mihomo.';
+  }
+
+  const svcHtml = (list, set, name) => list.map((s) =>
+    '<label class="opt" data-svc="' + s.id + '"><input type="checkbox" name="' + name + '" value="' + s.id + '"' +
+    ((set.services ? set.services.includes(s.id) : s.on) ? ' checked' : '') + '><span>' + esc(s.label) +
+    '<small>' + esc(s.hint || '') + '</small></span></label>').join('');
+  $('#bases').innerHTML = Object.keys(XB).map((k) =>
+    '<label class="opt"><input type="checkbox" name="base" value="' + k + '"' + ((saved.xray.bases || ['zkeen']).includes(k) ? ' checked' : '') + '>' +
+    '<span>' + esc(XB[k].label) + '<small>' + esc(XB[k].hint) + '</small></span></label>').join('');
+  $('#servicesXray').innerHTML = svcHtml(XS, saved.xray, 'svcX');
+  $('#servicesMihomo').innerHTML = svcHtml(MS, saved.mihomo, 'svcM');
+  ['blockQuic', 'blockAds', 'finalProxy'].forEach((k) => { if (k in saved[core]) $('#' + k).checked = saved[core][k]; });
+  if ('perService' in saved.mihomo) $('#perService').checked = saved.mihomo.perService;
+  if (saved.xray.tag) $('#tag').value = saved.xray.tag;
+
+  const checked = (n) => Array.from(document.querySelectorAll('input[name=' + n + ']:checked')).map((i) => i.value);
+  function opts() {
+    const o = {
+      blockQuic: $('#blockQuic').checked, blockAds: $('#blockAds').checked, finalProxy: $('#finalProxy').checked,
+      proxyDomains: $('#proxyDomains').value, directDomains: $('#directDomains').value,
+    };
+    if (core === 'xray') return Object.assign(o, { bases: checked('base'), services: checked('svcX'), tag: $('#tag').value.trim() || 'vless-reality' });
+    const sub = $('#sub').value.trim();
+    return Object.assign(o, { services: checked('svcM'), perService: $('#perService').checked, subscription: /^https?:\/\/\S+$/.test(sub) ? sub : '', secret, target: router === 'openwrt' ? 'nikki' : 'xkeen' });
+  }
+
+  // Без нужной базы V2Fly сервис недоступен: галочку снимаем, но помним выбор до возвращения базы.
+  function syncXray(o) {
+    XS.forEach((s) => {
+      const el = document.querySelector('[data-svc="' + s.id + '"]');
+      if (!el || !el.querySelector('input[name=svcX]')) return;
+      const box = el.querySelector('input'), ok = PM.xrayServiceAvailable(s, o.bases);
+      if (!ok && !box.disabled) { box.dataset.want = box.checked ? '1' : ''; box.checked = false; }
+      if (ok && box.disabled) box.checked = box.dataset.want === '1';
+      el.classList.toggle('off', !ok);
+      box.disabled = !ok;
+      const need = Object.keys(XB).filter((b) => s[b]).map((b) => XB[b].label).join(' или ');
+      el.querySelector('small').textContent = ok ? (s.hint || '') : 'нужна база ' + need;
+    });
+    const ads = o.bases.includes('v2fly'), box = $('#blockAds');
+    if (!ads && !box.disabled) { box.dataset.want = box.checked ? '1' : ''; box.checked = false; }
+    if (ads && box.disabled) box.checked = box.dataset.want === '1';
+    $('#adsOpt').classList.toggle('off', !ads);
+    box.disabled = !ads;
+    $('#adsHint').textContent = ads ? '' : 'нужна база V2Fly';
+  }
+
+  function applyMode() {
+    const x = core === 'xray';
+    $('#lead').innerHTML = x
+      ? 'Вставьте ссылку на свой сервер: получите готовые <code>04_outbounds.json</code> и <code>05_routing.json</code> для XKeen на Keenetic.'
+      : 'Ссылки на серверы или подписка: получите готовый <code>config.yaml</code> с правилами для нужных сервисов, автовыбором быстрого сервера и веб-панелью. Для Keenetic (XKeen) и OpenWrt (Nikki).';
+    $('#serversTitle').textContent = x ? 'Ссылки на серверы' : 'Серверы';
+    $('#subBox').hidden = x;
+    $('#basesBox').hidden = !x; $('#tagBox').hidden = !x; $('#perServiceOpt').hidden = x;
+    $('#servicesXray').hidden = !x; $('#servicesMihomo').hidden = x;
+    $('#serversHint').innerHTML = x
+      ? 'Поддерживаются vless (REALITY, TLS, ws, gRPC, xhttp, httpupgrade), vmess, trojan, shadowsocks, Hysteria2 и WireGuard. Несколько серверов: Xray сам выберет самый быстрый. TUIC и AmneziaWG работают через Mihomo.'
+      : 'Подписку роутер скачает сам и будет обновлять каждый час. Поддерживаются vless (REALITY, TLS, ws, gRPC, xhttp), vmess, trojan, shadowsocks, Hysteria2, TUIC, WireGuard и AmneziaWG (ссылки wireguard:// и vpn:// из 3X-UI).';
+    $('#tested').textContent = x ? 'Проверено на Xray 26 и XKeen 2.0' : 'Проверено на Mihomo 1.19 и XKeen 2.0 (Keenetic)';
+    ['blockQuic', 'blockAds', 'finalProxy'].forEach((k) => { if (k in saved[core]) $('#' + k).checked = saved[core][k]; });
+    $('#blockAds').disabled = false; $('#adsOpt').classList.remove('off'); $('#adsHint').textContent = '';
+  }
+
+  const EMPTY = '<div class="empty">Добавьте ссылку в шаг 2: здесь появятся файлы.</div>';
+  function out() { return $('#out'); }
+  function show() {
+    if (!files || !out()) return;
+    out().textContent = files[tab];
+    $('#dl').textContent = 'Скачать ' + tab;
+  }
+
+  function render() {
+    if (core === 'xray') syncXray(opts());
+    const o = opts();
+    store.set('router', router); store.set('core', core);
+    const keep = core === 'xray'
+      ? { bases: o.bases, services: o.services, tag: o.tag, blockQuic: o.blockQuic, blockAds: o.blockAds, finalProxy: o.finalProxy }
+      : { services: o.services, perService: o.perService, blockQuic: o.blockQuic, blockAds: o.blockAds, finalProxy: o.finalProxy };
+    saved[core] = keep; store.set(core, JSON.stringify(keep));
+    document.querySelectorAll('.opt').forEach((l) => { const i = l.querySelector('input'); if (i) l.classList.toggle('on', i.checked); });
+
+    const parsed = PM.parseText($('#links').value);
+    let r = null, err = '', skipped = [];
+    try {
+      if (core === 'xray') { if (parsed.proxies.length) { r = PM.buildXray(parsed.proxies, o); skipped = r.skipped; } }
+      else if (parsed.proxies.length || o.subscription) r = PM.buildMihomo(parsed.proxies, o);
+    } catch (e) { err = e.message; }
+    if (core === 'mihomo' && $('#sub').value.trim() && !o.subscription) err = 'Подписка должна начинаться с http:// или https://';
+    UI.renderParsed($('#parsed'), parsed, skipped);
+
+    if (!r) {
+      files = null; tab = null;
+      $('#result').innerHTML = err ? '<div class="msg err">' + esc(err) + '</div>' : EMPTY;
+      $('#cmdBox').innerHTML = '<div class="empty">Команда появится, когда будет готов конфиг.</div>';
+      return;
+    }
+    if (core === 'xray') {
+      files = {}; Object.keys(r.files).forEach((n) => { files[n] = JSON.stringify(r.files[n], null, 2) + '\n'; });
+    } else files = { 'config.yaml': r.yaml };
+    const names = Object.keys(files);
+    if (!tab || !files[tab]) tab = names[0];
+    // Вкладки пересобираем, только когда меняется набор файлов.
+    const sig = names.join('|') + '|' + core;
+    if (!out() || $('#result').dataset.sig !== sig) {
+      $('#result').dataset.sig = sig;
+      $('#result').innerHTML =
+        '<div class="tabs" id="tabs">' + names.map((n) => '<button data-tab="' + n + '"' + (n === tab ? ' class="on"' : '') + '>' + esc(n) + '</button>').join('') + '</div>' +
+        '<div class="out"><pre class="code" id="out"></pre></div>' +
+        '<div class="actions"><button class="btn" id="cp">Скопировать</button><button class="btn ghost" id="dl"></button></div><div id="note"></div>';
+      UI.tabs($('#tabs'), (t) => { tab = t; show(); });
+      $('#cp').onclick = (e) => UI.copy(files[tab], e.target);
+      $('#dl').onclick = () => UI.download(tab, files[tab]);
+    }
+    show();
+    const notes = [];
+    if (core === 'xray' && r.count > 1) notes.push('Серверов: ' + r.count + '. Xray будет каждую минуту проверять их и выбирать самый быстрый.');
+    if (skipped.length) notes.push('Пропущено: ' + skipped.map((s) => s.name + ' – ' + s.error).join('; '));
+    (r.warnings || []).forEach((w) => notes.push(w));
+    $('#note').innerHTML = notes.map((n) => '<div class="msg warn">' + esc(n) + '</div>').join('');
+
+    const cmd = PM.routerCommand(router, core, files);
+    const how = [
+      '<li>Подключитесь к роутеру: <code>' + esc(R[router].ssh) + '</code></li>',
+      router === 'openwrt' ? '<li>Nikki уже должен быть установлен (как это сделать – в инструкции).</li>' : (core === 'mihomo' ? '<li>Если XKeen сейчас работает на Xray, сначала выполните <code>xkeen -mihomo</code></li>' : ''),
+      '<li>Вставьте команду целиком и нажмите Enter.</li>',
+      core === 'mihomo' ? '<li>Панель управления: <code>http://192.168.x.x:9090/ui</code>, секрет: <code>' + esc(secret) + '</code></li>' : '<li>Проверить: <code>xkeen -status</code></li>',
+    ].join('');
+    $('#cmdBox').innerHTML = '<p class="hint" style="margin:0 0 12px">' + esc(PM.routerDescribe(router, core)) + ' Вставьте в SSH: <code>' + esc(R[router].ssh) + '</code></p>' +
+      '<pre class="code" id="cmd"></pre><div class="actions"><button class="btn" id="cpc">Скопировать команду</button></div>' +
+      '<ol class="how">' + how + '</ol>' +
+      (router === 'openwrt' ? '<div class="msg warn">Если команда не сработала, выберите профиль <code>3x-ui-kit.yaml</code> в настройках Nikki (LuCI) вручную.</div>' : '');
+    $('#cmd').textContent = cmd;
+    $('#cpc').onclick = (e) => UI.copy(cmd, e.target);
+  }
+
+  function onChoice(e) {
+    const t = e.target;
+    if (t.name === 'router') { router = t.value; if (!R[router].cores.includes(core)) core = R[router].cores[0]; }
+    else if (t.name === 'core') core = t.value;
+    else return false;
+    drawChoices(); applyMode(); tab = null; render();
+    return true;
+  }
+  document.addEventListener('change', (e) => { if (!onChoice(e)) render(); });
+  document.addEventListener('input', (e) => { if (!/^(router|core)$/.test(e.target.name || '')) render(); });
+  drawChoices(); applyMode(); render();
+})();
+</script>
+</body>
+</html>

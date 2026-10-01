@@ -54,18 +54,5 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  // Команда для SSH: записывает файлы и перезапускает XKeen.
-  function routerCommand(files, dir, switchCmd) {
-    const parts = ['# Вставьте целиком в SSH-консоль роутера (Entware)', '# ' + switchCmd + '   ← раскомментируйте, если сейчас работает другое ядро', 'mkdir -p ' + dir];
-    Object.keys(files).forEach((name) => {
-      let body = files[name];
-      let tag = 'PMEOF';
-      while (body.includes(tag)) tag += 'X';
-      parts.push("cat > " + dir + '/' + name + " <<'" + tag + "'\n" + body.replace(/\n?$/, '\n') + tag);
-    });
-    parts.push('xkeen -restart');
-    return parts.join('\n') + '\n';
-  }
-
-  root.UI = { $, esc, store, renderParsed, tabs, copy, download, routerCommand };
+  root.UI = { $, esc, store, renderParsed, tabs, copy, download };
 })(window);

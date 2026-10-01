@@ -252,8 +252,11 @@
     rules.push('MATCH,' + (opts.finalProxy ? PROXY : 'DIRECT'));
     cfg.rules = rules;
 
-    const head = '# Сгенерировано: https://itsnotkubrick.github.io/3X-UI_KIT/tools/mihomo/\n' +
-      '# Файл для XKeen: /opt/etc/mihomo/config.yaml, затем xkeen -restart\n' +
+    // Куда класть файл: XKeen на Keenetic или профиль Nikki на OpenWrt (порты и DNS Nikki подставляет сам).
+    const where = opts.target === 'nikki'
+      ? '# Для Nikki (OpenWrt): профиль /etc/nikki/profiles/3x-ui-kit.yaml, порты и DNS Nikki подставит сам\n'
+      : '# Файл для XKeen: /opt/etc/mihomo/config.yaml, затем xkeen -restart\n';
+    const head = '# Сгенерировано: https://itsnotkubrick.github.io/3X-UI_KIT/tools/\n' + where +
       '# Панель управления: http://IP-роутера:9090/ui (секрет – поле secret ниже)\n';
     return { yaml: head + yaml(cfg).replace(/^\n/, ''), config: cfg, count: proxies.length };
   }
