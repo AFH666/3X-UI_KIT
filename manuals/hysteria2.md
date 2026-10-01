@@ -60,6 +60,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 | `hy2 list` | список пользователей |
 | `hy2 link имя` | ссылка и QR-код ещё раз |
 | `hy2 status` | версия, адрес и состояние |
+| `hy2 restart` | перезапустить, например после исправления DNS |
 | `hy2 update` | обновить до новой проверенной версии |
 | `hy2 uninstall` | удалить всё |
 
