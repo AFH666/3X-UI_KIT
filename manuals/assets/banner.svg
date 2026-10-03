@@ -16,9 +16,9 @@
 <text x="798" y="116" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-weight="700" font-size="13" fill="#CBBFA9">==&gt; Ставлю 3X-UI…</text>
 <text x="798" y="142" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-weight="800" font-size="14" fill="#93E06F">Готово! 3X-UI работает.</text>
 <text x="798" y="164" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-weight="700" font-size="13" fill="#CBBFA9">https://IP/sub/…</text></g>
-<g transform="rotate(-4 1000 222)"><rect x="868" y="206" width="262" height="52" rx="6" fill="#15110F" transform="translate(4 5)"/>
-<rect x="868" y="206" width="262" height="52" rx="6" fill="#F2E8D2" stroke="#15110F" stroke-width="3"/>
-<circle cx="881" cy="219" r="3.2" fill="#15110F"/><circle cx="1117" cy="219" r="3.2" fill="#15110F"/>
-<text x="999" y="241" text-anchor="middle" font-family="Rubik,'Arial Black','Helvetica Neue',Arial,system-ui,sans-serif" font-weight="900" font-size="26" fill="#15110F" letter-spacing=".5">11 ПРОТОКОЛОВ</text></g>
+<g transform="rotate(-4 1000 222)"><rect x="854" y="206" width="292" height="52" rx="6" fill="#15110F" transform="translate(4 5)"/>
+<rect x="854" y="206" width="292" height="52" rx="6" fill="#F2E8D2" stroke="#15110F" stroke-width="3"/>
+<circle cx="868" cy="219" r="3.2" fill="#15110F"/><circle cx="1132" cy="219" r="3.2" fill="#15110F"/>
+<text x="1000" y="241" text-anchor="middle" font-family="Rubik,'Arial Black','Helvetica Neue',Arial,system-ui,sans-serif" font-weight="900" font-size="23" fill="#15110F" letter-spacing=".5">11 ПРОТОКОЛОВ</text></g>
 <text x="1176" y="290" text-anchor="end" font-family="Rubik,'Arial Black','Helvetica Neue',Arial,system-ui,sans-serif" font-size="13" font-weight="500" fill="#CBBFA9" font-style="italic">it's not Kubrick. it's just a VPN.</text>
 </svg>
