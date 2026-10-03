@@ -38,6 +38,15 @@ got=$(curl -fsSL "https://raw.githubusercontent.com/MHSanaei/3x-ui/$xv/install.s
 [[ $got == "$xs" ]] || die "Установщик 3X-UI $xv изменился: $got вместо $xs. Проверьте, что поменялось, прежде чем выпускать."
 ok "Установщик 3X-UI $xv совпадает с закреплённым SHA256"
 
+# Суммы архивов ядра Xray в скрипте должны совпадать с официальными (.dgst релиза Xray-core).
+xc=$(sed -n 's/^XRAY_CORE="\(.*\)"/\1/p' scripts/3x-ui.sh)
+for a in 64 arm64-v8a; do
+  pin=$(sed -n "s/^  \[$a\]=\([0-9a-f]\{64\}\)\$/\1/p" scripts/3x-ui.sh)
+  off=$(curl -fsSL "https://github.com/XTLS/Xray-core/releases/download/$xc/Xray-linux-$a.zip.dgst" | awk '/^SHA2-256=/ {print $2}')
+  [[ -n $pin && $pin == "$off" ]] || die "Сумма ядра Xray $xc ($a) в 3x-ui.sh не совпадает с официальной: «$pin» вместо «$off»."
+done
+ok "Суммы архивов ядра Xray $xc совпадают с официальными"
+
 # Открытые ключи из kit и hy2 – одинаковые, и среди них есть ключ, которым подписываем.
 signers() { awk '/^KIT_SIGNERS=\(/ {on = 1; next} on && /^\)/ {exit} on && /^ *"/ {gsub(/^ *"|"$/, ""); print}' "$1"; }
 [[ -n $(signers scripts/kit.sh) ]] || die "В scripts/kit.sh пустой KIT_SIGNERS: впишите туда открытую часть ключа ($key.pub)."

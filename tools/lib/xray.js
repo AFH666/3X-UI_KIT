@@ -83,12 +83,12 @@
   const BASES = {
     zkeen: { label: 'ZKeen', hint: 'ставится XKeen по умолчанию, рекомендуется', site: 'zkeen.dat', ip: 'zkeenip.dat' },
     v2fly: { label: 'V2Fly', hint: 'нужна для отдельных сервисов и блокировки рекламы', site: 'geosite_v2fly.dat', ip: 'geoip_v2fly.dat' },
-    refilter: { label: 'Re:filter', hint: 'большой список заблокированного', site: 'geosite_refilter.dat', ip: 'geoip_refilter.dat' },
+    refilter: { label: 'Re:filter', hint: 'большой список сайтов', site: 'geosite_refilter.dat', ip: 'geoip_refilter.dat' },
   };
 
   // Сервис → правила по базам. d: домены, i: IP. Берутся все доступные базы.
   const SERVICES = [
-    { id: 'blocked', label: 'Заблокированное в России', on: true,
+    { id: 'blocked', label: 'Сайты из списка re:filter', on: true,
       zkeen: { d: ['domains', 'other', 'politic'] }, refilter: { d: ['refilter'], i: ['refilter'] } },
     { id: 'youtube', label: 'YouTube', on: true, zkeen: { d: ['youtube'], i: ['youtube'] }, v2fly: { d: ['youtube'] } },
     { id: 'telegram', label: 'Telegram', on: true, zkeen: { i: ['telegram'] }, v2fly: { d: ['telegram'] } },

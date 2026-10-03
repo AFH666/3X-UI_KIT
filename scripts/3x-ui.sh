@@ -28,13 +28,21 @@ wait_apt_idle() {
 XUI_VERSION="v3.8.5"
 # SHA256 установщика 3X-UI этой версии: тег могут передвинуть, а хеш – нет (проверено 2026-09-30).
 XUI_INSTALL_SHA256="4e3fe7fe00ef8e904ce6a0e9c36fd8a0c7179fe5e786f23e31801aee84c6347d"
-KIT_VERSION="1.1"
+KIT_VERSION="1.1.1"
 # kit и kit-sub берём из того же релиза, что и этот скрипт, а не из меняющейся ветки main.
 KIT_RAW="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$KIT_VERSION"
 # Ядро Xray для панели. С 26.7.x клиенты на Mihomo и sing-box (Hiddify, FlClash,
 # Clash Verge, Mihomo в XKeen) не проходят REALITY – проверено 2026-09-25.
 # 26.6.27 – последняя версия, с которой работают все клиенты и которую принимает 3X-UI.
 XRAY_CORE="v26.6.27"
+# SHA256 архивов этой версии ядра (из официальных файлов .dgst релиза Xray-core). Запасной путь
+# через зеркало ставит архив, только если сумма совпала: зеркалу верить не нужно.
+# При смене XRAY_CORE обновите суммы: tools/release.sh сверяет их с официальными.
+declare -A XRAY_ZIP_SHA256=(
+  [64]=b3e5902d06d6282fe53cfa2fc426058b9aeaa429b2c812e20887cd47f26d08bf
+  [arm64-v8a]=13a251379bea366c2cf10363ad71e75734193d401f26f518bf0c25e5c8f8c931
+)
+XRAY_MIRRORS=("https://github.com" "https://ghfast.top/https://github.com")
 XUI_REPO="MHSanaei/3x-ui"
 RESULT=/root/3x-ui.txt
 XUI_ENV=/etc/x-ui/install-result.env
@@ -43,8 +51,8 @@ XUI_ENV=/etc/x-ui/install-result.env
 SNI_CANDIDATES=(dl.google.com www.amazon.com www.samsung.com www.yahoo.com)
 
 ALL_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic wg awg awg3 mtproto)
-# Обычный WireGuard в России режет DPI (проверено 2026-09-27: рукопожатие доходит до сервера,
-# ответ – нет), а его попытки могут привлечь блокировку IP. По умолчанию не ставим.
+# Обычный WireGuard легко распознаётся сетевым оборудованием и работает нестабильно
+# (проверено 2026-09-27: рукопожатие доходит до сервера, ответ – нет). По умолчанию не ставим.
 DEFAULT_PROTOS=(reality hy2 xhttp ws trojan vmess ss tuic awg awg3 mtproto)
 declare -A PORTS=([xhttp]=8443 [ws]=2053 [trojan]=2083 [vmess]=2087 [ss]=8388 [tuic]=8444 [wg]=51820 [awg]=51821 [awg3]=51822 [mtproto]=8445)
 PROTOS=(); CREATED=(); OPEN=()
@@ -55,6 +63,7 @@ SNI2=""; SNI3=""
 # Свой домен (self-steal): REALITY маскируется под сайт на этом же сервере, а не под чужой.
 DOMAIN=""
 DOMAIN_CERT_DIR=/root/cert/domain
+SELF_IP_CERT=no   # yes – сертификат на IP самоподписанный (Let's Encrypt отказал, пользователь согласился)
 
 if [[ -t 1 ]]; then
   G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'
@@ -183,17 +192,38 @@ issue_domain_cert() {
   return 0
 }
 
-# Восстановление из копии не должно застревать на сертификате: сервер поднимаем с временным
-# самоподписанным, а настоящий выпускаем отдельной командой (она же перезагрузит nginx).
-domain_cert_fallback() {
-  local acme=/root/.acme.sh/acme.sh
-  install -d -m 700 "$DOMAIN_CERT_DIR"
-  openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$DOMAIN_CERT_DIR/privkey.pem" \
-    -out "$DOMAIN_CERT_DIR/fullchain.pem" -subj "/CN=$DOMAIN" -addext "subjectAltName=DNS:$DOMAIN" -days 30 2>/dev/null
-  chmod 600 "$DOMAIN_CERT_DIR/privkey.pem"
-  warn "Сервер поднимается с временным сертификатом для $DOMAIN: по домену заглушка откроется с предупреждением, клиентов это не заденет."
-  echo "   Когда причина устранена, выпустите настоящий сертификат:"
-  echo "   $acme --issue -d $DOMAIN --standalone --server letsencrypt --keylength ec-256 && $acme --install-cert -d $DOMAIN --ecc --fullchain-file $DOMAIN_CERT_DIR/fullchain.pem --key-file $DOMAIN_CERT_DIR/privkey.pem --reloadcmd 'systemctl reload nginx'"
+# Let's Encrypt не выдал сертификат на IP, а режим со своим доменом без него не работает: предлагаем
+# самоподписанный сертификат на IP. Ссылки на подключения продолжат работать (отпечаток уходит в
+# ссылки), а подписка в приложениях может не открыться: им такой сертификат не нравится.
+ip_cert_self_signed_fallback() {
+  local san="IP:$HOST"
+  [[ $HOST =~ ^[0-9.]+$ ]] || san="DNS:$HOST"
+  warn "Let's Encrypt не выдал сертификат на IP $HOST. Частые причины:"
+  {
+    echo "   – лимит Let's Encrypt: 5 сертификатов в неделю на один IP;"
+    echo "   – входящий порт 80 закрыт (у хостера или в файрволе);"
+    echo "   – сбой у самого Let's Encrypt (лог: /var/log/3x-ui-install.log)."
+    echo "   Можно продолжить с самоподписанным сертификатом: ссылки на подключения работают, браузер покажет"
+    echo "   предупреждение, а подписка в приложениях может не открыться."
+  } >&2
+  if [[ $yes == no && -t 1 ]] && { : </dev/tty; } 2>/dev/null; then
+    ask_tty "Продолжить с самоподписанным сертификатом? [Y/n] " || REPLY=""
+    [[ ${REPLY,,} == n* ]] && return 1
+  else
+    say "Продолжаю с самоподписанным сертификатом (без вопросов)."
+  fi
+  install -d -m 700 /root/cert/ip
+  (umask 077; openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout /root/cert/ip/privkey.pem \
+    -out /root/cert/ip/fullchain.pem -subj "/CN=$HOST" -addext "subjectAltName=$san" -days 3650 2>/dev/null)
+  chmod 644 /root/cert/ip/fullchain.pem
+  chmod 600 /root/cert/ip/privkey.pem
+  say "Подключаю самоподписанный сертификат к панели"
+  /usr/local/x-ui/x-ui cert -webCert /root/cert/ip/fullchain.pem -webCertKey /root/cert/ip/privkey.pem >/dev/null 2>&1
+  systemctl restart x-ui
+  API="https://127.0.0.1:$XUI_PANEL_PORT/$XUI_WEB_BASE_PATH/panel/api"
+  wait_panel
+  SELF_IP_CERT=yes
+  return 0
 }
 
 # Куда REALITY отправляет чужих гостей: для своего домена – на nginx этого сервера.
@@ -270,7 +300,7 @@ main() {
     die "3X-UI уже установлена другим способом – не трогаю её. Удалите её (x-ui uninstall) или добавьте REALITY в панели вручную."
   fi
 
-  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey="" multi=no restore=""
+  local PORT=443 SNI="" PANEL_SSL=auto HOST="" UFW=yes NAME="admin" yes=no protos=all ucert="" ukey="" multi=no
   while [[ $# -gt 0 ]]; do
     case $1 in
       --port) PORT=$2; shift 2 ;;
@@ -284,15 +314,12 @@ main() {
       --multi-port) multi=yes; shift ;;
       --key) ukey=$2; shift 2 ;;
       --no-ufw) UFW=no; shift ;;
-      --restore) restore=$2; shift 2 ;;
       -y|--yes) yes=yes; shift ;;
       -h|--help) usage; exit 0 ;;
       *) die "Неизвестный параметр: $1 (см. --help)" ;;
     esac
   done
   [[ $PORT =~ ^[0-9]+$ ]] && ((PORT > 0 && PORT < 65536)) || die "Неверный порт: $PORT"
-  # Восстановление из копии (restore_main) отключено до версии 1.2: его ещё не проверили на настоящем сервере.
-  [[ -z $restore ]] || die "Восстановление из копии появится в версии 1.2. Пока доступна только резервная копия: kit backup."
   local re_host='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
   [[ -z $SNI || $SNI =~ $re_host ]] || die "--sni: нужно имя сайта, например dl.google.com"
   [[ -z $DOMAIN || $DOMAIN =~ $re_host ]] || die "--domain: нужно имя вашего домена, например vpn.example.com"
@@ -339,7 +366,7 @@ main() {
   export DEBIAN_FRONTEND=noninteractive
   wait_apt_idle
   apt-get update -qq
-  apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron >/dev/null
+  apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron unzip >/dev/null
 
   HOST=${HOST:-$(public_ip)}
   [[ -n $HOST ]] || die "Не удалось узнать внешний IP. Укажите его: --host 1.2.3.4"
@@ -399,10 +426,13 @@ main() {
   # Let's Encrypt, сбой). Без него панель осталась бы без TLS, а nginx проксирует её по https:
   # получился бы сервер, который говорит «Готово», а панель не открывается.
   if [[ $PANEL_SSL == ip && ! -s /root/cert/ip/fullchain.pem ]]; then
-    [[ -z $DOMAIN ]] || die "Let's Encrypt не выдал сертификат на IP $HOST, а свой домен без него не работает. Частые причины: порт 80 закрыт у хостера, лимит Let's Encrypt (5 выпусков на один IP за неделю), сбой у Let's Encrypt. Лог: /var/log/3x-ui-install.log"
-    warn "Let's Encrypt не выдал сертификат на IP $HOST (порт 80 закрыт у хостера, лимит выпусков или сбой). Ставлю без него: панель будет доступна только через SSH-туннель."
-    PANEL_SSL=none
-    TRUSTED=no
+    if [[ -n $DOMAIN ]]; then
+      ip_cert_self_signed_fallback || die "Остановил установку по вашему выбору. Запустите скрипт снова без --domain (панель будет доступна через SSH-туннель) или позже, когда сертификат на IP снова можно будет получить."
+    else
+      warn "Let's Encrypt не выдал сертификат на IP $HOST (порт 80 закрыт у хостера, лимит выпусков или сбой). Ставлю без него: панель будет доступна только через SSH-туннель."
+      PANEL_SSL=none
+      TRUSTED=no
+    fi
   fi
 
   # Без сертификата панель и подписки не должны торчать наружу по HTTP.
@@ -494,6 +524,7 @@ main() {
   echo "${G}${B}Готово! 3X-UI работает: ${#CREATED[@]} протоколов.${N}"
   echo "${D}${CREATED[*]}${N}"
   [[ -n $DOMAIN ]] && echo "Маскировка: свой домен ${B}$DOMAIN${N}, сертификат Let's Encrypt продлевается сам."
+  [[ $SELF_IP_CERT == yes ]] && echo "${Y}Сертификат на IP самоподписанный:${N} используйте ссылки на отдельные подключения из /root/3x-ui.txt, подписка в приложениях может не открыться."
   echo
   echo "Панель:  ${B}$panel_url${N}"
   echo "Логин:   ${B}$XUI_USERNAME${N}"
@@ -557,6 +588,43 @@ connect_panel() {
   wait_panel
 }
 
+# Архив ядра: скачиваем по очереди с GitHub и с зеркала и принимаем только тот, чья SHA256 совпала.
+xray_zip_arch() {
+  case "$(uname -m)" in
+    x86_64 | amd64) echo 64 ;;
+    aarch64 | arm64) echo arm64-v8a ;;
+    *) return 1 ;;
+  esac
+}
+xray_fetch_verified() { # каталог; кладёт xray.zip, 0 – сумма совпала
+  local d=$1 arch want got base
+  arch=$(xray_zip_arch) || return 1
+  want=${XRAY_ZIP_SHA256[$arch]}
+  for base in "${XRAY_MIRRORS[@]}"; do
+    curl -fsSL --connect-timeout 10 --max-time 180 --retry 1 -o "$d/xray.zip" \
+      "$base/XTLS/Xray-core/releases/download/$XRAY_CORE/Xray-linux-$arch.zip" 2>/dev/null || continue
+    got=$(sha256sum "$d/xray.zip" | awk '{print $1}')
+    [[ $got == "$want" ]] && return 0
+    warn "Архив ядра Xray с ${base#https://} не прошёл проверку SHA256 – отбрасываю."
+  done
+  return 1
+}
+xray_install_fallback() {
+  local d bin
+  d=$(mktemp -d)
+  if ! command -v unzip >/dev/null; then
+    wait_apt_idle
+    apt-get install -y -qq unzip >/dev/null || { warn "Не удалось поставить unzip – запасной путь загрузки ядра недоступен."; rm -rf "$d"; return 0; }
+  fi
+  bin=$(ls /usr/local/x-ui/bin/xray-linux-* 2>/dev/null | head -n 1) || true
+  if [[ -n $bin ]] && xray_fetch_verified "$d" && unzip -q -o "$d/xray.zip" xray -d "$d"; then
+    install -m 755 "$d/xray" "$bin.new" && mv -f "$bin.new" "$bin"
+    systemctl restart x-ui
+    wait_panel
+  fi
+  rm -rf "$d"
+}
+
 set_xray_core() {
   local cur_core
   cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
@@ -568,6 +636,11 @@ set_xray_core() {
       [[ $cur_core == "$XRAY_CORE" ]] && break
       sleep 2
     done
+    if [[ $cur_core != "$XRAY_CORE" ]]; then
+      warn "Панель не смогла скачать ядро с GitHub – пробую запасной путь: зеркало с проверкой SHA256."
+      xray_install_fallback
+      cur_core=$(/usr/local/x-ui/bin/xray-linux-* version 2>/dev/null | awk 'NR==1 {print "v" $2}')
+    fi
     [[ $cur_core == "$XRAY_CORE" ]] || warn "Не удалось сменить ядро Xray (сейчас $cur_core). Клиенты на Mihomo и sing-box могут не подключиться."
   fi
 }
@@ -589,6 +662,8 @@ setup_tls_cert() {
     CERT=/root/cert/custom/fullchain.pem; KEY=/root/cert/custom/privkey.pem
   elif [[ $PANEL_SSL == ip && -s /root/cert/ip/fullchain.pem ]]; then
     CERT=/root/cert/ip/fullchain.pem; KEY=/root/cert/ip/privkey.pem
+    # Самоподписанный сертификат на IP: отпечаток уходит в ссылки, чтобы клиенты доверяли именно ему.
+    [[ $SELF_IP_CERT == yes ]] && PIN=$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':' | tr 'A-F' 'a-f')
   else
     # Без Let's Encrypt – свой сертификат, а его отпечаток уходит в ссылки (pcs),
     # чтобы клиенты доверяли именно ему.
@@ -1263,224 +1338,13 @@ sub_links() {
   if grep -q '://' <<<"$raw"; then echo "$raw"; else base64 -d <<<"$raw" 2>/dev/null || true; fi
 }
 
-# ---------- восстановление из резервной копии (kit backup) ----------
-
-# Файл настроек из копии можно подключать, только если в нём нет ничего, кроме
-# ИМЯ=значение без подстановок и команд.
-safe_env() {
-  [[ -r $1 ]] || die "В копии нет файла ${1##*/}."
-  grep -qvE "^([A-Z][A-Z0-9_]*=([A-Za-z0-9._:/@%+,=-]*|'[^']*'))?$" "$1" && die "В копии подозрительный файл ${1##*/} – не восстанавливаю."
-  return 0
-}
-
-# Меняет старый IP на новый в базе панели и файлах kit (только целиком, 1.2.3.4 не заденет 11.2.3.45).
-replace_host() { # старый новый файлы...
-  python3 - "$@" <<'PY'
-import re, sqlite3, sys
-old, new, files = sys.argv[1], sys.argv[2], sys.argv[3:]
-rx = re.compile(r"(?<![0-9.])" + re.escape(old) + r"(?![0-9])")
-sub = lambda v: rx.sub(new, v) if isinstance(v, str) else v
-db = sqlite3.connect("/etc/x-ui/x-ui.db")
-db.create_function("kit_sub", 1, sub)
-for table, cols in (("inbounds", ("settings", "stream_settings")), ("settings", ("value",))):
-    for c in cols:
-        db.execute("UPDATE %s SET %s = kit_sub(%s)" % (table, c, c))
-db.commit(); db.close()
-for f in files:
-    s = open(f).read()
-    open(f, "w").write(rx.sub(new, s))
-PY
-}
-
-restore_main() { # файл
-  local file=$1 tmp old_ip=""
-  [[ -f $file ]] || die "Нет файла $file. Сначала скопируйте копию на этот сервер: scp kit-backup-….tar.gz root@IP:"
-  [[ -d /usr/local/x-ui ]] && die "Восстанавливать можно только на чистый сервер, а здесь уже стоит 3X-UI."
-  port_busy 443 tcp && die "Порт 443/tcp занят. Восстанавливать нужно на чистый VPS."
-
-  say "Ставлю пакеты: curl, jq, openssl, qrencode, ufw, python3"
-  export DEBIAN_FRONTEND=noninteractive
-  wait_apt_idle
-  apt-get update -qq
-  apt-get install -y -qq curl jq openssl qrencode ca-certificates iproute2 ufw socat cron python3 python3-yaml >/dev/null
-
-  # Сначала проверяем архив целиком: только наши пути, только файлы и папки, без ссылок
-  # и «../». Чужой архив не должен ничего записать мимо.
-  tmp=$(mktemp -d)
-  # shellcheck disable=SC2064 # путь подставляем сразу: при выходе локальной переменной уже нет
-  trap "rm -rf -- '$tmp'" EXIT
-  python3 - "$file" "$tmp" <<'PY' || die "Это не резервная копия 3X-UI KIT или она повреждена. Ничего не менял."
-import os, sys, tarfile
-allowed = ("etc/x-ui/x-ui.db", "etc/x-ui/install-result.env", "etc/kit/kit.env", "etc/kit-sub/config.json",
-           "etc/nginx/kit-stream.conf", "etc/nginx/conf.d/kit.conf", "var/www/kit", "root/cert/self",
-           "root/cert/custom", "root/3x-ui.txt", "kit-backup.env")
-parents = {"etc", "etc/x-ui", "etc/kit", "etc/kit-sub", "etc/nginx", "etc/nginx/conf.d", "var", "var/www", "root", "root/cert"}
-with tarfile.open(sys.argv[1], "r:gz") as t:
-    ms = []
-    for m in t.getmembers():
-        n = os.path.normpath(m.name)
-        if n == ".":
-            continue
-        if n.startswith("/") or ".." in n.split("/"):
-            sys.exit("путь " + m.name)
-        if not (m.isfile() or m.isdir()):
-            sys.exit("не файл " + m.name)
-        if not (n in parents and m.isdir()) and not any(n == a or n.startswith(a + "/") for a in allowed):
-            sys.exit("лишний " + m.name)
-        m.name = n
-        m.uid = m.gid = 0
-        m.uname = m.gname = "root"
-        m.mode = 0o700 if m.isdir() else 0o600
-        ms.append(m)
-    names = {m.name for m in ms}
-    for need in ("etc/x-ui/x-ui.db", "etc/x-ui/install-result.env", "kit-backup.env"):
-        if need not in names:
-            sys.exit("нет " + need)
-    if hasattr(tarfile, "data_filter"):
-        t.extractall(sys.argv[2], members=ms, filter="data")
-    else:
-        t.extractall(sys.argv[2], members=ms)
-PY
-  local f
-  for f in "$tmp/kit-backup.env" "$tmp/etc/x-ui/install-result.env" "$tmp/etc/kit/kit.env"; do if [[ -f $f ]]; then safe_env "$f"; fi; done
-  python3 -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'; c.execute('SELECT count(*) FROM inbounds')" \
-    "$tmp/etc/x-ui/x-ui.db" 2>/dev/null || die "База панели в копии повреждена. Ничего не менял."
-
-  local BACKUP_HOST="" BACKUP_SSL="" BACKUP_DATE="" BACKUP_KIT_VERSION=""
-  # shellcheck disable=SC1090
-  . "$tmp/kit-backup.env"
-  [[ $BACKUP_SSL =~ ^(ip|custom|none)$ ]] || die "В копии нет данных о сертификате."
-  PANEL_SSL=$BACKUP_SSL
-  # Домен переезжает вместе с сервером (поменяйте A-запись), IP – нет.
-  if [[ $BACKUP_HOST =~ ^[0-9.]+$ ]]; then
-    HOST=${HOST:-$(public_ip)}
-    [[ -n $HOST ]] || die "Не удалось узнать внешний IP. Укажите его: --host 1.2.3.4"
-    [[ $HOST != "$BACKUP_HOST" ]] && old_ip=$BACKUP_HOST
-  else
-    HOST=$BACKUP_HOST
-  fi
-  # Свой домен (self-steal): берём из подключения REALITY в базе. Сертификат в копию не кладём,
-  # на новом сервере он выпускается заново, а для этого домен уже должен вести на новый IP.
-  DOMAIN=$(python3 - "$tmp/etc/x-ui/x-ui.db" 2>/dev/null <<'PY' || true
-import json, sqlite3, sys
-db = sqlite3.connect(sys.argv[1])
-for (s,) in db.execute("SELECT stream_settings FROM inbounds WHERE remark = 'REALITY'"):
-    try:
-        r = json.loads(s)["realitySettings"]
-    except Exception:
-        continue
-    if r.get("target") == "127.0.0.1:10447" and r.get("serverNames"):
-        print(r["serverNames"][0])
-        break
-PY
-)
-  [[ $PANEL_SSL == ip || -n $DOMAIN ]] && port_busy 80 tcp && die "Для сертификата нужен свободный порт 80/tcp."
-  if [[ -n $DOMAIN ]]; then
-    [[ $DOMAIN =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]] || die "В копии странное имя домена – не восстанавливаю."
-    domain_points_here "$DOMAIN" || die "Сервер в копии маскируется под домен $DOMAIN. Сначала направьте его A-запись на этот сервер, потом запустите восстановление снова. Ничего не менял."
-  fi
-  # Конфиги nginx и kit-sub из архива не берём, а собираем заново: из копии – только
-  # проверенные значения (путь подписки, порты, режим).
-  SINGLE=no; SUB_PATH=""; SUB_INTERNAL=""; SUB_PORT=""
-  if [[ -f $tmp/etc/kit/kit.env ]]; then
-    SINGLE=$(. "$tmp/etc/kit/kit.env"; echo "${SINGLE:-no}")
-    SUB_PATH=$(. "$tmp/etc/kit/kit.env"; echo "${SUB_PATH:-}")
-    SUB_INTERNAL=$(. "$tmp/etc/kit/kit.env"; echo "${SUB_INTERNAL:-}")
-    [[ $SINGLE =~ ^(yes|no)$ && $SUB_PATH =~ ^/[A-Za-z0-9_-]+/$ && $SUB_INTERNAL =~ ^[0-9]{1,5}$ ]] \
-      || die "В копии странные настройки kit (kit.env) – не восстанавливаю."
-  fi
-  if [[ -f $tmp/etc/kit-sub/config.json ]]; then
-    SUB_PORT=$(jq -r '.port' "$tmp/etc/kit-sub/config.json" 2>/dev/null || true)
-    [[ $SUB_PORT =~ ^[0-9]{1,5}$ && -n $SUB_PATH ]] || die "В копии странные настройки подписки – не восстанавливаю."
-  fi
-  say "Копия от ${BACKUP_DATE:-?} (kit ${BACKUP_KIT_VERSION:-?}), сервер ${B}$HOST${N}"
-
-  # 3X-UI той же закреплённой версии, потом подменяем её базу на базу из копии:
-  # подключения, ключи REALITY, пользователи и их подписки остаются прежними.
-  install_xui "$(free_port)" "$(rand_str 18)" "$(rand_str 10)" "$(rand_str 20)"
-  systemctl stop x-ui
-  install -m 600 "$tmp/etc/x-ui/x-ui.db" /etc/x-ui/x-ui.db
-  install -m 600 "$tmp/etc/x-ui/install-result.env" "$XUI_ENV"
-  local c
-  for c in self custom; do
-    [[ -d $tmp/root/cert/$c ]] || continue
-    install -d -m 700 "/root/cert/$c"
-    install -m 644 "$tmp/root/cert/$c/fullchain.pem" "/root/cert/$c/fullchain.pem"
-    install -m 600 "$tmp/root/cert/$c/privkey.pem" "/root/cert/$c/privkey.pem"
-  done
-  install -d -m 700 /etc/kit /etc/kit-sub
-  [[ -f $tmp/etc/kit/kit.env ]] && install -m 600 "$tmp/etc/kit/kit.env" /etc/kit/kit.env
-  [[ -f $tmp/root/3x-ui.txt ]] && install -m 600 "$tmp/root/3x-ui.txt" "$RESULT"
-  if [[ -n $old_ip ]]; then
-    say "Меняю адрес сервера в подключениях: $old_ip → $HOST"
-    local files=()
-    for f in "$XUI_ENV" /etc/kit/kit.env "$RESULT"; do if [[ -f $f ]]; then files+=("$f"); fi; done
-    replace_host "$old_ip" "$HOST" "${files[@]}"
-  fi
-  systemctl start x-ui
-  connect_panel
-  set_xray_core
-
-  # Сертификат: Let's Encrypt на новый IP выпустил установщик, свой и самоподписанный – из копии.
-  setup_tls_cert
-  TRUSTED=no
-  [[ $PANEL_SSL == ip || $PANEL_SSL == custom ]] && TRUSTED=yes
-  if [[ -n $SUB_PORT ]]; then
-    install_kit_sub
-    [[ $SINGLE == yes ]] || OPEN+=("$SUB_PORT/tcp")
-  fi
-  # Всё на 443: nginx строит маршруты по подключениям из базы, заглушка – из копии.
-  if [[ $SINGLE == yes ]]; then
-    [[ -n $DOMAIN ]] && { issue_domain_cert || domain_cert_fallback; }
-    install -d -m 755 /var/www/kit
-    [[ -f $tmp/var/www/kit/index.html ]] && install -m 644 "$tmp/var/www/kit/index.html" /var/www/kit/index.html
-    setup_nginx
-  fi
-
-  if [[ -f /etc/kit/kit.env ]]; then
-    install_kit_file
-    brand_xui_menu
-    /usr/local/bin/kit update --auto >/dev/null 2>&1 || warn "Автообновление не включилось – включите позже: kit update --auto"
-  fi
-
-  # Порты – по подключениям из копии: что слушает не только localhost, то и открываем.
-  if [[ $UFW == yes ]]; then
-    local p
-    while read -r p; do OPEN+=("$p"); done < <(api GET inbounds/list | jq -r '.[] | select(.listen != "127.0.0.1")
-      | if (.protocol | test("^(hysteria|hysteria2|tuic|wireguard|amneziawg)$")) then "\(.port)/udp"
-        elif .protocol == "shadowsocks" then "\(.port)/tcp", "\(.port)/udp" else "\(.port)/tcp" end')
-    [[ $TRUSTED == yes && $SINGLE == no ]] && OPEN+=("$XUI_PANEL_PORT/tcp")
-    [[ $PANEL_SSL == ip || -n $DOMAIN ]] && OPEN+=("80/tcp")
-    setup_ufw
-  fi
-
-  local n_in n_cl
-  n_in=$(api GET inbounds/list | jq length)
-  n_cl=$(api GET inbounds/list | jq '[.[] | (.settings | if type == "string" then fromjson else . end).clients // [] | .[].email] | unique | length')
-  kit_banner
-  echo
-  echo "${G}${B}Готово! Сервер восстановлен из копии: $n_in подключений, $n_cl клиентских записей.${N}"
-  echo "Логин и пароль панели прежние, адрес панели и подписки: ${B}cat $RESULT${N}"
-  echo
-  if [[ -n $old_ip ]]; then
-    warn "IP сервера сменился: $old_ip → $HOST."
-    echo "Старые подписки указывают на старый IP, поэтому клиентам нужно один раз добавить"
-    echo "подписку заново: ${B}kit user list${N}, затем ${B}kit user link имя${N}."
-    echo "${D}Чтобы в следующий раз переезд прошёл незаметно для клиентов, ставьте сервер на домен (--cert, --key, --host).${N}"
-  else
-    echo "Клиентам ничего менять не нужно: ключи, ссылки и подписки те же."
-  fi
-  [[ $PANEL_SSL == custom ]] && echo "Направьте A-запись домена ${B}$HOST${N} на IP этого сервера, если ещё не сделали."
-  return 0
-}
-
 usage() {
   cat <<EOF
 3X-UI со всеми протоколами одной командой
 
   --protocols all     all (по умолчанию – всё, кроме WireGuard), minimal (только REALITY)
                       или список через запятую: reality,hy2,xhttp,ws,trojan,vmess,ss,tuic,wg,awg,awg3,mtproto
-                      (обычный WireGuard в России блокируется – включайте его, только если сервер и
+                      (обычный WireGuard работает нестабильно – включайте его, только если сервер и
                       пользователи за границей)
   --port 443          порт REALITY (TCP) и Hysteria2 (UDP), по умолчанию 443
   --sni сайт          чужой сайт для маскировки (по умолчанию подбирается сам)

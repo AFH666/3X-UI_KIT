@@ -4,14 +4,14 @@
 #
 #   kit user add имя [--gb 50] [--days 30] [--devices 3]
 #   kit user list | link имя | limit имя [--gb N] [--days N] | off имя | on имя | del имя
-#   kit update [--auto | --manual] | kit backup | kit version
+#   kit update [--auto | --manual] | kit backup | kit check | kit fix | kit version
 
 set -Eeuo pipefail
 export LC_ALL=C.UTF-8  # ширина колонок по символам, а не байтам
 
-KIT_VERSION="1.1"
+KIT_VERSION="1.1.1"
 KIT_RAW="https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main"
-# Файлы новой версии берём из её тега (v1.2 и т.д.), а не из меняющейся ветки main.
+# Файлы новой версии берём из её тега, а не из меняющейся ветки main.
 kit_ref_raw() { echo "https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v$1"; }
 
 XUI_ENV=/etc/x-ui/install-result.env
@@ -271,7 +271,7 @@ cmd_version() {
 # Что нового в версии $1 – из CHANGELOG.md, без разметки.
 changelog_of() {
   curl -fsS -m 5 "$KIT_RAW/CHANGELOG.md" 2>/dev/null | awk -v v="## v$1" '
-    index($0, v) == 1 { on = 1; t = substr($0, length(v) + 1); sub(/^[: ]+/, "", t); if (t != "") print t; next } on && /^## / { exit } on' | sed 's/\*\*//g; s/`//g' | grep -v '^[[:space:]]*$' | head -40 || true
+    index($0, v) == 1 { on = 1; t = substr($0, length(v) + 1); sub(/^[: ]+/, "", t); if (t != "") print t; next } on && /^## / { exit } on' | sed -E 's/ ?Спасибо \[[^]]*\]\([^)]*\)[^.]*\.//g; s/\[([^]]*)\]\([^)]*\)/\1/g; s/\*\*//g; s/`//g' | grep -v '^[[:space:]]*$' | head -40 || true
 }
 
 # Скачивает релиз $1 в каталог $2 и проверяет: подпись SHA256SUMS нашим ключом, версию
@@ -483,9 +483,233 @@ cmd_update() {
   if [[ -n $news ]]; then echo; echo "${B}Что нового в $latest${N}"; echo "$news"; fi
 }
 
+# ---------- проверка и починка ----------
+
+# kit check только читает и показывает, что с сервером. kit fix чинит безопасное: перезапускает
+# упавшие службы, возвращает права на файлы, включает автообновление, перечитывает сертификат.
+CHECK_BAD=0; CHECK_WARN=0; CHECK_FIX=(); CHECK_QUIET=no
+c_ok()   { [[ $CHECK_QUIET == yes ]] || printf '%s\n' "${G}✅${N} $*"; }
+c_info() { [[ $CHECK_QUIET == yes ]] || printf '%s\n' "${D}ℹ  $*${N}"; }
+c_warn() { printf '%s\n' "${Y}⚠${N}  $*"; CHECK_WARN=$((CHECK_WARN + 1)); }
+c_bad()  { printf '%s\n' "${R}❌${N} ${*:2}"; CHECK_BAD=$((CHECK_BAD + 1)); [[ -z $1 ]] || CHECK_FIX+=("$1"); } # код-починки сообщение
+
+# Сайт маскировки отвечает по TLS 1.3 и HTTP/2 (как требует REALITY)? Проверка с самого сервера.
+sni_alive() { echo | timeout 8 openssl s_client -connect "$1:443" -servername "$1" -tls1_3 -alpn h2 2>/dev/null | grep -q 'ALPN protocol: h2'; }
+
+check_services() {
+  local pid u
+  if systemctl is-active -q x-ui; then c_ok "служба x-ui работает"; else c_bad svc:x-ui "служба x-ui не работает (journalctl -u x-ui -n 50)"; fi
+  if [[ ${SINGLE:-no} == yes ]]; then
+    if systemctl is-active -q nginx; then c_ok "nginx работает"; else c_bad svc:nginx "nginx не работает (journalctl -u nginx -n 50)"; fi
+  fi
+  if [[ -f /usr/local/lib/kit-sub/kit_sub.py ]]; then
+    if systemctl is-active -q kit-sub; then
+      c_ok "служба kit-sub работает"
+      pid=$(systemctl show -p MainPID --value kit-sub 2>/dev/null || true)
+      u=$(ps -o user= -p "$pid" 2>/dev/null | tr -d ' ' || true)
+      if [[ -n $u && $u != root ]]; then c_ok "kit-sub работает не от root (пользователь $u)"; else c_bad "" "kit-sub работает от root – это небезопасно, обновите kit: kit update --force"; fi
+    else
+      c_bad svc:kit-sub "служба kit-sub не работает (journalctl -u kit-sub -n 50)"
+    fi
+  fi
+  if auto_enabled; then c_ok "автообновление включено"
+  elif [[ -f $KIT_MANUAL ]]; then c_info "автообновление выключено вами (включить: kit update --auto)"
+  else c_bad timer "автообновление не включено"; fi
+}
+
+check_versions() {
+  local xv; xv=$(xray_version || true)
+  c_info "kit $KIT_VERSION, панель 3X-UI $(/usr/local/x-ui/x-ui -v 2>/dev/null | head -1 || echo '?'), ядро Xray ${xv:-?}"
+  if [[ -n $xv ]] && newer "$xv" v26.6.27; then
+    c_warn "ядро Xray $xv новее проверенного (26.6.27): клиенты на Mihomo и sing-box могут не подключаться к REALITY"
+  fi
+  if [[ -s $KIT_LATEST ]] && newer "$(cat "$KIT_LATEST")" "$KIT_VERSION"; then
+    c_info "вышла версия $(cat "$KIT_LATEST"): kit update"
+  fi
+}
+
+check_cert() {
+  local cert end left
+  cert=$(awk '$1 == "ssl_certificate" {sub(/;$/, "", $2); print $2; exit}' /etc/nginx/conf.d/kit.conf 2>/dev/null || true)
+  [[ -n $cert ]] || cert=$(jq -r '.cert // empty' /etc/kit-sub/config.json 2>/dev/null || true)
+  [[ -n $cert && -f $cert ]] || { c_info "сертификат для проверки не найден (режим без TLS)"; return 0; }
+  if ! openssl x509 -in "$cert" -noout -checkend 0 >/dev/null 2>&1; then
+    c_bad cert "сертификат $cert просрочен"
+  else
+    end=$(openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+    left=$((($(date -d "$end" +%s) - $(date +%s)) / 86400))
+    if openssl x509 -in "$cert" -noout -checkend 86400 >/dev/null 2>&1; then c_ok "сертификат действителен ещё ~$left дн."
+    else c_warn "сертификат истекает меньше чем через сутки: проверьте продление (acme.sh --cron)"; fi
+  fi
+}
+
+check_exposure() {
+  local bind f m bad=0
+  # Панель наружу не торчит: за nginx или в режиме «только SSH-туннель».
+  if [[ ${SINGLE:-no} == yes || ! -f /usr/local/lib/kit-sub/kit_sub.py ]]; then
+    bind=$(ss -ltnH "sport = :$XUI_PANEL_PORT" 2>/dev/null | awk '{print $4}' || true)
+    if [[ -z $bind ]]; then c_bad "" "панель не слушает порт $XUI_PANEL_PORT"
+    elif grep -qv '^127\.0\.0\.1:' <<<"$bind"; then c_bad "" "панель слушает наружу ($(tr '\n' ' ' <<<"$bind")): в настройках 3X-UI укажите адрес 127.0.0.1"
+    else c_ok "панель слушает только localhost"; fi
+  fi
+  if [[ ${SINGLE:-no} == yes ]]; then
+    if ss -ltnH 'sport = :443' 2>/dev/null | grep -q .; then c_ok "порт 443 слушается"; else c_bad svc:nginx "порт 443 никто не слушает"; fi
+    if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
+      if ufw status | grep -Eq '^443/tcp +ALLOW'; then c_ok "ufw пропускает 443/tcp"; else c_bad "" "ufw не пропускает 443/tcp: ufw allow 443/tcp"; fi
+    fi
+  fi
+  for f in /etc/x-ui/install-result.env /etc/kit/kit.env /etc/kit-sub/config.json /root/3x-ui.txt /root/cert/*/privkey.pem; do
+    [[ -f $f ]] || continue
+    m=$(stat -c %a "$f")
+    [[ $m == 600 ]] || { c_bad perms "права на $f: $m (нужно 600)"; bad=1; }
+  done
+  ((bad)) || c_ok "файлы с паролями и ключами доступны только root"
+}
+
+check_subscription() {
+  local cfg=/etc/kit-sub/config.json port path scheme=http sid ua code size body up sub_cert
+  [[ -f $cfg ]] || { c_info "подписка не установлена (режим без сертификата: используйте отдельные ссылки из /root/3x-ui.txt)"; return 0; }
+  port=$(jq -r '.port' "$cfg"); path=$(jq -r '.path' "$cfg")
+  # Частая поломка: команда «x-ui cert» или меню панели включает TLS у встроенной подписки 3X-UI,
+  # а kit-sub ходит к ней по http – подписка перестаёт отвечать.
+  up=$(jq -r '.upstream // empty' "$cfg")
+  sub_cert=$(api POST setting/all '{}' 2>/dev/null | jq -r '.subCertFile // empty' 2>/dev/null || true)
+  if [[ $up == http://* && -n $sub_cert ]]; then
+    c_bad subtls "у встроенной подписки 3X-UI включён TLS (сертификат $sub_cert), а kit-sub ходит к ней по http – подписка не отвечает"
+  fi
+  body=$(mktemp)
+  [[ -n $(jq -r '.cert // empty' "$cfg") ]] && scheme=https
+  sid=$(clients 2>/dev/null | jq -r '[.[] | .subId // empty | select(. != "")][0] // empty' 2>/dev/null || true)
+  [[ -n $sid ]] || { c_info "пользователей нет, подписку проверить нечем"; return 0; }
+  for ua in "Happ/1.0" "HiddifyNext/2.0" "v2rayN/7.0" "clash-verge/v2"; do
+    : >"$body"
+    code=$(curl -sgk -m 10 -A "$ua" -o "$body" -w '%{http_code}' "$scheme://127.0.0.1:$port$path$sid" 2>/dev/null || true)
+    size=$(wc -c <"$body" | tr -d ' ')
+    if [[ $code == 200 && ${size:-0} -gt 0 ]]; then c_ok "подписка отвечает для $ua ($size байт)"; else c_bad svc:kit-sub "подписка для $ua: HTTP ${code:-нет ответа}"; fi
+  done
+  rm -f "$body"
+  if [[ ${SINGLE:-no} == yes ]]; then
+    code=$(curl -sk -m 10 -A "Happ/1.0" -o /dev/null -w '%{http_code}' "https://127.0.0.1$path$sid" 2>/dev/null || true)
+    if [[ $code == 200 ]]; then c_ok "подписка отвечает и через nginx (443)"; else c_bad svc:nginx "подписка через nginx: HTTP ${code:-нет ответа} (ищите причину выше)"; fi
+  fi
+}
+
+check_masking() {
+  local list line sni target host ips
+  list=$(api GET inbounds/list 2>/dev/null) || { c_bad "" "не удалось получить подключения из панели (панель не отвечает?)"; return 0; }
+  while IFS=$'\t' read -r name sni target; do
+    [[ -n $sni ]] || continue
+    if [[ $target == 127.0.0.1:* ]]; then
+      ips=$(getent ahostsv4 "$sni" 2>/dev/null | awk '{print $1}' | sort -u || true); host=${HOST:-}
+      if [[ -n $ips ]] && grep -qx "$host" <<<"$ips"; then c_ok "$name: свой домен $sni указывает на этот сервер"
+      else c_bad "" "$name: свой домен $sni не указывает на этот сервер (A-запись: ${ips:-нет}, нужен $host)"; fi
+    elif sni_alive "$sni"; then
+      c_ok "$name: сайт маскировки $sni отвечает по TLS 1.3 и HTTP/2"
+    else
+      c_bad "" "$name: сайт маскировки $sni не отвечает по TLS 1.3 и HTTP/2 – смените его в панели 3X-UI"
+    fi
+  done < <(jq -r '.[] | select(.protocol == "vless") | (.streamSettings | if type == "string" then fromjson else . end) as $s
+    | select($s.security == "reality") | [.remark, ($s.realitySettings.serverNames[0] // ""), ($s.realitySettings.target // "")] | @tsv' <<<"$list" 2>/dev/null || true)
+  c_info "Проверка идёт с самого сервера: доступность из вашей сети она не покажет."
+}
+
+check_system() {
+  local used
+  if command -v timedatectl >/dev/null; then
+    if [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null || true) == yes ]]; then c_ok "время синхронизировано"
+    else c_warn "время не синхронизировано: при сильном сдвиге TLS и REALITY не работают (kit fix включит синхронизацию)"; CHECK_FIX+=(ntp); fi
+  fi
+  used=$(df -P / | awk 'NR==2 {gsub("%", "", $5); print $5}')
+  if ((${used:-0} >= 95)); then c_warn "диск заполнен на ${used}%"; else c_ok "место на диске: занято ${used:-?}%"; fi
+}
+
+run_checks() {
+  CHECK_BAD=0; CHECK_WARN=0; CHECK_FIX=()
+  check_services; check_versions; check_cert; check_exposure; check_subscription; check_masking; check_system
+}
+
+cmd_check() {
+  echo "${B}kit check${N} – проверка сервера (ничего не меняет)"
+  echo
+  run_checks
+  echo
+  if ((CHECK_BAD == 0)); then
+    echo "${G}${B}Всё в порядке.${N}$( ((CHECK_WARN)) && echo " Предупреждений: $CHECK_WARN." || true)"
+  else
+    echo "${R}${B}Проблем: $CHECK_BAD.${N} Безопасные исправления: ${B}kit fix${N} (сначала можно посмотреть: kit fix --dry-run)."
+    return 1
+  fi
+}
+
+fix_action() { # код
+  case $1 in
+    svc:x-ui) say "Перезапускаю x-ui"; systemctl restart x-ui; sleep 3 ;;
+    svc:nginx)
+      if nginx -t >/dev/null 2>&1; then say "Перезапускаю nginx"; systemctl restart nginx
+      else warn "Конфиг nginx не проходит проверку (nginx -t) – не трогаю, чтобы не сломать сервер."; fi ;;
+    svc:kit-sub) say "Перезапускаю kit-sub"; systemctl restart kit-sub; sleep 2 ;;
+    subtls)
+      say "Убираю сертификат у встроенной подписки 3X-UI (TLS снимает nginx, kit-sub ходит по http)"
+      local all upd
+      all=$(api POST setting/all '{}')
+      upd=$(jq -c '.subCertFile = "" | .subKeyFile = ""' <<<"$all")
+      api POST setting/update "$upd" >/dev/null
+      systemctl restart x-ui; sleep 4 ;;
+    timer) say "Включаю автообновление"; auto_on ;;
+    perms)
+      say "Возвращаю права 600 на файлы с паролями и ключами"
+      local f
+      for f in /etc/x-ui/install-result.env /etc/kit/kit.env /etc/kit-sub/config.json /root/3x-ui.txt /root/cert/*/privkey.pem; do
+        [[ -f $f ]] && chmod 600 "$f"
+      done ;;
+    cert)
+      if nginx -t >/dev/null 2>&1; then say "Перечитываю сертификат в nginx"; systemctl reload nginx
+      else warn "Конфиг nginx не проходит проверку – сертификат не перечитываю."; fi
+      warn "Если сертификат всё ещё просрочен, запустите продление: ~/.acme.sh/acme.sh --cron" ;;
+    ntp) say "Включаю синхронизацию времени"; timedatectl set-ntp true ;;
+  esac
+}
+
+# Что чинить сейчас: если найдена причина (TLS у подписки), перезапуски kit-sub и nginx – лишь
+# следствия: сначала лечим причину, потом проверяем заново.
+fix_plan() {
+  local c
+  while IFS= read -r c; do
+    if [[ $c == svc:kit-sub || $c == svc:nginx ]] && printf '%s\n' "${CHECK_FIX[@]}" | grep -qx subtls; then continue; fi
+    echo "$c"
+  done < <(printf '%s\n' "${CHECK_FIX[@]}" | sort -u)
+}
+
+cmd_fix() {
+  local dry=no c pass plan
+  case ${1:-} in --dry-run) dry=yes ;; "") ;; *) die "kit fix [--dry-run]" ;; esac
+  echo "${B}kit fix${N} – безопасные исправления (службы, права, автообновление, сертификат, время)"
+  echo
+  CHECK_QUIET=yes; run_checks; CHECK_QUIET=no
+  if ((${#CHECK_FIX[@]} == 0)); then
+    if ((CHECK_BAD == 0)); then echo "${G}Чинить нечего: всё в порядке.${N}"; return 0; fi
+    echo; echo "${Y}Автоматически эти проблемы не исправить, они описаны выше. Подробности: kit check${N}"; return 1
+  fi
+  if [[ $dry == yes ]]; then
+    while IFS= read -r c; do echo "  будет сделано: $c"; done < <(fix_plan)
+    return 0
+  fi
+  for pass in 1 2; do
+    plan=$(fix_plan)
+    [[ -n $plan ]] || break
+    while IFS= read -r c; do fix_action "$c"; done <<<"$plan"
+    CHECK_QUIET=yes; run_checks; CHECK_QUIET=no
+    ((${#CHECK_FIX[@]})) || break
+  done
+  echo; echo "${B}Повторная проверка${N}"; echo
+  run_checks
+  echo
+  if ((CHECK_BAD == 0)); then echo "${G}${B}Готово: всё в порядке.${N}"; else echo "${R}Осталось проблем: $CHECK_BAD.${N} Часть из них нужно решать вручную (см. выше)."; return 1; fi
+}
+
 # ---------- резервная копия ----------
 
-# Всё, что нужно, чтобы поднять тот же сервер в другом месте: база панели (пользователи,
+# Что входит в копию: база панели (пользователи,
 # ключи, подключения), настройки kit и kit-sub, nginx, сайт-заглушка, свои сертификаты.
 # Сертификаты Let's Encrypt (на IP и на свой домен) не берём: на новом сервере он выпускается заново.
 BACKUP_PATHS=(/etc/x-ui/install-result.env /etc/kit/kit.env /etc/kit-sub/config.json
@@ -527,7 +751,6 @@ PY
   echo "В ней ключи и пароли от сервера, храните её как пароль. Скачать к себе (на компьютере):"
   echo "  ${B}scp root@$HOST:$out .${N}"
   echo
-  echo "${D}Восстановление из копии на новом VPS появится в версии 1.2.${N}"
 }
 
 usage() {
@@ -545,7 +768,9 @@ ${B}kit${N} $KIT_VERSION – управление сервером 3X-UI KIT
 Сервер:
   kit update            обновить kit и подписку kit-sub сейчас (пользователи и ссылки не меняются)
   kit update --manual   выключить автообновление (--auto – включить обратно)
-  kit backup            резервная копия сервера (восстановление из неё – в версии 1.2)
+  kit backup            резервная копия сервера (подключения, ключи, пользователи)
+  kit check             проверить сервер: службы, сертификат, подписка, сайт маскировки, права
+  kit fix [--dry-run]   исправить безопасное: перезапустить службы, права, автообновление, сертификат
   kit version           версия kit, панели и ядра
 EOF
 }
@@ -560,6 +785,8 @@ case "${1:-} ${2:-}" in
   "user del") shift 2; cmd_del "$@" ;;
   "update "*) shift; cmd_update "$@" ;;
   "backup "*) cmd_backup ;;
+  "check "*) cmd_check ;;
+  "fix "*) shift; cmd_fix "$@" ;;
   "version "*|"--version "*|"-v "*) cmd_version ;;
   *) usage; update_hint ;;
 esac

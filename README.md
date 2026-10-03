@@ -2,25 +2,30 @@
 
 <img alt="3X-UI KIT" src="manuals/assets/banner.svg" width="820">
 
-**Свой VPN-сервер одной командой: 11 протоколов, один порт 443, одна подписка на всё**
+**Установка 3X-UI одной командой: 11 протоколов, один порт 443, одна подписка на всё**
 
 [![Протоколов](https://img.shields.io/badge/протоколов-11-93E06F?labelColor=221B17)](manuals/3x-ui.md#протоколы)
 [![3X-UI](https://img.shields.io/badge/3X--UI-v3.8.5-93E06F?labelColor=221B17)](https://github.com/MHSanaei/3x-ui)
 [![Обновлено](https://img.shields.io/github/last-commit/itsnotkubrick/3X-UI_KIT?label=обновлено&color=93E06F&labelColor=221B17)](https://github.com/itsnotkubrick/3X-UI_KIT/commits)
 
-[Возможности](#возможности) · [Установка](#установка) · [Генератор](#генератор-конфигов-для-роутера) · [Полезное](#полезное) · [Поддержать](#поддержать-проект)
+[Возможности](#возможности) · [Установка](#установка) · [Команды](#команды-kit) · [Роутер](#vpn-на-роутере) · [Генератор](#генератор-конфигов-для-роутера) · [Полезное](#полезное) · [Поддержать](#поддержать-проект)
 
 </div>
 
 ---
 
 > [!TIP]
-> **Вышла версия 1.1:** исправления по аудиту безопасности, автообновление только подписанных
-> релизов, выбор маскировки (свой домен). [Что нового](https://github.com/itsnotkubrick/3X-UI_KIT/releases/tag/v1.1) ·
-> сервер на 1.0 обновляется одной командой:
+> **Вышла версия 1.1.1:** `kit check` и `kit fix`, исправления для Happ и скачивания ядра, инструкции для XKeen.
+> [Что нового](https://github.com/itsnotkubrick/3X-UI_KIT/releases/tag/v1.1.1) ·
+> сервер на 1.1 обновится сам этой ночью, а на 1.0 одной командой:
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
+> curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
 > ```
+
+> [!NOTE]
+> **Проект – набор скриптов с открытым кодом.** Он не оказывает услуг связи и не предоставляет доступ
+> к серверам. Вы ставите его на собственный сервер и сами отвечаете за соблюдение законодательства
+> своей страны.
 
 **3X-UI KIT** превращает чистый VPS в готовый VPN-сервер за несколько минут. Скрипт ставит
 официальную панель [3X-UI](https://github.com/MHSanaei/3x-ui), настраивает все популярные
@@ -46,12 +51,15 @@
 - 🔒 **Сертификат Let's Encrypt на IP** выпускается и продлевается сам, панель скрыта на
   случайном пути со случайными логином и паролем.
 - ✅ **Проверено настоящими клиентами** – каждый протокол на ядрах Xray, Mihomo и sing-box,
-  в том числе с сервером в России: [tests/matrix](tests/matrix/).
+  в том числе через интернет к удалённому серверу: [tests/matrix](tests/matrix/).
 
 ## Что понадобится
 
 - VPS с **Ubuntu 22.04/24.04** или **Debian 12/13** и доступом root по SSH
 - Свободные порты **443** и **80** – на свежем сервере они свободны
+
+Нужен VPS? Я сам использую **[IS Hosting](https://ishosting.io/affiliate/NTg4MiM4)** и рекомендую его
+(реферальная ссылка).
 
 ## Установка
 
@@ -71,12 +79,158 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main
 > Проект создан в образовательных целях. Убедитесь, что ваши действия
 > соответствуют законодательству вашей страны.
 
+## Команды kit
+
+После установки на сервере появляется команда `kit`. Подробности – в [инструкции](manuals/3x-ui.md).
+
+| Команда | Что делает |
+|---|---|
+| `kit user add имя [--gb 50] [--days 30] [--devices 3]` | добавить пользователя во все протоколы и показать его подписку с QR-кодом |
+| `kit user list` | кто сколько израсходовал, до какого числа и когда был в сети |
+| `kit user link имя [--all]` | показать подписку ещё раз; `--all` добавляет ссылки `vpn://` и `tg://` |
+| `kit user limit имя [--gb N] [--days N] [--devices N]` | изменить лимиты (`0` – без ограничений) |
+| `kit user off имя` / `kit user on имя` | временно выключить и включить пользователя |
+| `kit user del имя` | удалить пользователя |
+| `kit check` | проверить сервер: службы, сертификат, подписку, сайт маскировки, права на файлы (ничего не меняет) |
+| `kit fix [--dry-run]` | исправить безопасное: перезапустить службы, вернуть права, включить автообновление |
+| `kit update [--manual \| --auto]` | обновить сейчас; `--manual` выключает автообновление, `--auto` включает |
+| `kit backup` | сохранить копию сервера (подключения, ключи, пользователи) |
+| `kit version` | версии `kit`, панели и ядра, состояние автообновления |
+
+Для отдельного сервера Hysteria2 есть команда `hy2` (`hy2 add`, `hy2 del`, `hy2 list`, `hy2 link`, `hy2 status`,
+`hy2 restart`, `hy2 update`, `hy2 uninstall`), подробнее – в [инструкции по Hysteria2](manuals/hysteria2.md).
+Панелью 3X-UI управляет команда `x-ui`.
+
+## VPN на роутере
+
+Через прокси идут только нужные сервисы и выбранные устройства, остальное работает напрямую.
+Порядок: **1.** установить программу на роутер → **2.** собрать конфиг в [генераторе](#генератор-конфигов-для-роутера) →
+**3.** вставить команду из генератора.
+
+> [!NOTE]
+> **🙏 Спасибо автору XKeen.** На роутере работает не моя программа: я только собрал инструкцию
+> и генератор конфигов, а всю сложную работу сделал **jameszeroX**.
+>
+> **[XKeen](https://github.com/jameszeroX/XKeen)** – прокси на Keenetic (Xray и Mihomo, политики для устройств).
+> [Репозиторий](https://github.com/jameszeroX/XKeen) · [Вики](https://github.com/jameszeroX/XKeen/wiki) · ⭐ [Поставить звезду](https://github.com/jameszeroX/XKeen)
+>
+> Вопросы по самой программе задавайте в её репозитории: так автор узнаёт об ошибках. Если что-то не так
+> с моей инструкцией или генератором, пишите мне.
+
+<details>
+<summary><b>📶 Keenetic: XKeen (jameszeroX) · 8 шагов, 20–30 минут</b></summary>
+
+Нужны роутер **Keenetic** или **Netcraze** с USB-портом, USB-флешка в формате **ext4** и свой сервер с VLESS
+(например, из [этой инструкции](manuals/3x-ui.md)).
+
+<details>
+<summary><b>1. Компоненты KeeneticOS</b></summary>
+
+В веб-интерфейсе: **Управление → Общие настройки → Изменить набор компонентов**. Отметьте компоненты
+с галочками на картинке и установите. Роутер обновится и перезагрузится.
+
+![Нужные компоненты KeeneticOS](manuals/assets/keenetic-components.svg)
+
+</details>
+
+<details>
+<summary><b>2. Entware на флешку</b></summary>
+
+1. Отформатируйте флешку в **ext4** и вставьте её в роутер.
+2. Откройте её по сети (`\\192.168.x.x\`), создайте папку `install` и положите туда установщик под процессор роутера:
+   [mipsel](https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.tar.gz),
+   [mips](https://bin.entware.net/mipssf-k3.4/installer/mips-installer.tar.gz) или
+   [aarch64](https://bin.entware.net/aarch64-k3.10/installer/aarch64-installer.tar.gz).
+   Не знаете, какой нужен? Модель роутера – в характеристиках на сайте Keenetic.
+
+![Установщик Entware на флешке](manuals/assets/entware-installer.svg)
+
+3. **Управление → OPKG**: выберите флешку и сохраните. Установка займёт несколько минут.
+
+![Выбор накопителя для OPKG](manuals/assets/keenetic-opkg.svg)
+
+</details>
+
+<details>
+<summary><b>3. Подключение по SSH</b></summary>
+
+```bash
+ssh root@192.168.x.x -p 222
+```
+
+Пароль по умолчанию `keenetic`. **Сразу смените его** командой `passwd`.
+
+</details>
+
+<details>
+<summary><b>4. Шифрованный DNS</b></summary>
+
+Пропишите шифрованные DNS-серверы (DoT или DoH) по
+[инструкции Keenetic](https://support.keenetic.ru/ultra/kn-1811/ru/31543-dot-and-doh-proxy-servers-for-dns-requests-encryption.html):
+без этого XKeen работает неправильно.
+
+</details>
+
+<details>
+<summary><b>5. Токен для KeeneticOS 5.2 и новее</b></summary>
+
+XKeen нужен токен доступа к роутеру. Создайте его в разделе **Пользователи и доступ**, вставьте в
+[шаблон xkeen.json](https://github.com/jameszeroX/XKeen/releases/download/2.0.1_Beta/xkeen.json) и положите файл на роутер
+по пути `/opt/etc/xkeen/xkeen.json`. Подробнее – в [вики XKeen](https://github.com/jameszeroX/XKeen/wiki/Порядок-установки).
+
+</details>
+
+<details>
+<summary><b>6. Установка XKeen</b></summary>
+
+Подключитесь по SSH и выполните:
+
+```bash
+opkg update && opkg upgrade && opkg install curl tar && cd /tmp
+sh -c "$(curl -sSL https://raw.githubusercontent.com/jameszeroX/XKeen/main/install.sh)"
+```
+
+Если GitHub недоступен, замените адрес на `https://cdn.jsdelivr.net/gh/jameszeroX/XKeen@main/install.sh`.
+Установщик спросит ядро (Xray или Mihomo), геобазы и автозагрузку.
+
+Затем соберите конфиг в [генераторе](#генератор-конфигов-для-роутера) (роутер Keenetic, нужное ядро), вставьте команду в SSH-консоль
+и нажмите Enter: файлы запишутся, XKeen перезапустится.
+
+![Конфигурационные файлы Xray](manuals/assets/xkeen-configs.svg)
+
+</details>
+
+<details>
+<summary><b>7. Какие устройства через прокси</b></summary>
+
+В веб-интерфейсе откройте **Приоритеты подключений → Политики доступа в Интернет**, создайте политику
+с именем **`xkeen`** и перенесите в неё нужные устройства.
+
+> [!WARNING]
+> Без политики `xkeen` через прокси пойдёт трафик **всех** устройств в сети.
+
+</details>
+
+<details>
+<summary><b>8. Проверка</b></summary>
+
+- На роутере: `xkeen -status` – XKeen должен быть запущен.
+- На устройстве из политики `xkeen` откройте сайт, показывающий IP-адрес: он должен совпасть с адресом вашего сервера,
+  а на остальных устройствах остаться прежним.
+- Удобнее управлять настройками из браузера через [XKeen UI](https://github.com/zxc-rv/XKeen-UI).
+
+</details>
+
+Подробная версия с теми же шагами: [инструкция для Keenetic](manuals/xkeen-keenetic.md).
+
+</details>
+
 ## Генератор конфигов для роутера
 
 Вставьте ссылку на сервер или подписку, выберите роутер и ядро, отметьте нужные сервисы –
 и получите готовый конфиг и одну команду, которая сама положит его на роутер.
 Всё считается в браузере, ссылки никуда не отправляются.
-Как поставить XKeen на роутер – в [инструкции для Keenetic](manuals/xkeen-keenetic.md).
+Как поставить XKeen на роутер – в разделе [VPN на роутере](#vpn-на-роутере).
 
 | Роутер | Ядро | Что получится | Генератор |
 |---|---|---|---|

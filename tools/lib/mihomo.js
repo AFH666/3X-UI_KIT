@@ -7,7 +7,7 @@
 
   // Сервисы: какие наборы правил отправлять через прокси.
   const SERVICES = [
-    { id: 'blocked', group: 'Заблокированное', label: 'Заблокированное в России', hint: 'список re:filter – основные заблокированные сайты', on: true,
+    { id: 'blocked', group: 'Re:filter', label: 'Сайты из списка re:filter', hint: 'список re:filter – основные сайты', on: true,
       sets: [['refilter@domain', REFILTER + 'domain-rule.mrs', 'domain'], ['refilter@ipcidr', REFILTER + 'ip-rule.mrs', 'ipcidr']] },
     { id: 'youtube', label: 'YouTube', on: true, sets: [['youtube@domain', META + 'geosite/youtube.mrs', 'domain']] },
     { id: 'telegram', label: 'Telegram', on: true,
