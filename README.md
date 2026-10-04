@@ -16,7 +16,7 @@
 
 > [!TIP]
 > **Вышла версия 1.1.1:** `kit check` и `kit fix`, исправления для Happ и скачивания ядра, инструкции для XKeen.
-> [Что нового](https://github.com/itsnotkubrick/3X-UI_KIT/releases/tag/v1.1.1) ·
+> [Что нового](https://github.com/AFH666/3X-UI_KIT/releases/tag/v1.1.1) ·
 > сервер на 1.1 обновится сам этой ночью, а на 1.0 одной командой:
 > ```bash
 > curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
@@ -58,15 +58,12 @@
 - VPS с **Ubuntu 22.04/24.04** или **Debian 12/13** и доступом root по SSH
 - Свободные порты **443** и **80** – на свежем сервере они свободны
 
-Нужен VPS? Я сам использую **[IS Hosting](https://ishosting.io/affiliate/NTg4MiM4)** и рекомендую его
-(реферальная ссылка).
-
 ## Установка
 
 Подключитесь к серверу по SSH и выполните:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/main/scripts/3x-ui.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/AFH666/3X-UI_KIT/main/scripts/3x-ui.sh)
 ```
 
 Через пару минут скрипт покажет адрес панели, логин, пароль и подписку с QR-кодом.
