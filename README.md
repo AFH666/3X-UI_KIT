@@ -19,7 +19,7 @@
 > [Что нового](https://github.com/AFH666/3X-UI_KIT/releases/tag/v1.1.1) ·
 > сервер на 1.1 обновится сам этой ночью, а на 1.0 одной командой:
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/itsnotkubrick/3X-UI_KIT/v1.1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
+> curl -fsSL https://raw.githubusercontent.com/AFH666/3X-UI_KIT/v1.1.1/scripts/kit.sh -o /usr/local/bin/kit && chmod 755 /usr/local/bin/kit && kit update
 > ```
 
 > [!NOTE]
